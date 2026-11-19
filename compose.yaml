@@ -1,0 +1,69 @@
+name: restreamer-woody
+services:
+  core:
+    build: .
+    image: ${WOODY_REGISTRY:-ghcr.io/mrcookiedoo/restreamer-woody}:${WOODY_VERSION:-local}
+    restart: unless-stopped
+    environment:
+      CORE_API_AUTH_ENABLE: "true"
+      CORE_API_AUTH_USERNAME: ${CORE_API_AUTH_USERNAME:-admin}
+      CORE_API_AUTH_PASSWORD: ${CORE_API_AUTH_PASSWORD:?Run python3 scripts/setup.py first}
+      CORE_API_AUTH_JWT_SECRET: ${CORE_API_AUTH_JWT_SECRET:?Run python3 scripts/setup.py first}
+      CORE_RTMP_ENABLE: "true"
+      CORE_RTMP_APP: /live
+    volumes:
+      - ${WOODY_CORE_CONFIG:-core-config}:/core/config
+      - ${WOODY_CORE_DATA:-core-data}:/core/data
+    networks: [studio]
+
+  studio:
+    build: services/studio
+    image: ${WOODY_REGISTRY:-ghcr.io/mrcookiedoo/restreamer-woody}-studio:${WOODY_VERSION:-local}
+    restart: unless-stopped
+    depends_on: [core]
+    environment:
+      CORE_API_AUTH_USERNAME: ${CORE_API_AUTH_USERNAME:-admin}
+      CORE_API_AUTH_PASSWORD: ${CORE_API_AUTH_PASSWORD:?Run python3 scripts/setup.py first}
+      CORE_API_AUTH_JWT_SECRET: ${CORE_API_AUTH_JWT_SECRET:?Run python3 scripts/setup.py first}
+      WOODY_ENCRYPTION_KEY: ${WOODY_ENCRYPTION_KEY:?Run python3 scripts/setup.py first}
+      WOODY_BOT_TOKEN: ${WOODY_BOT_TOKEN:?Run python3 scripts/setup.py first}
+      WOODY_OUTPUT_URI: ${WOODY_OUTPUT_URI:-rtmp://core:1935/live/woody-program}
+      WOODY_ENCODER: ${WOODY_ENCODER:-x264}
+      WOODY_ALLOW_TEST_SOURCES: ${WOODY_ALLOW_TEST_SOURCES:-0}
+    volumes:
+      - studio-data:/data
+    networks: [studio]
+
+  gateway:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on: [core, studio]
+    ports: ["${WOODY_HTTP_PORT:-8080}:80"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [studio]
+
+  chatbot:
+    profiles: [chatbot]
+    build: services/chatbot
+    image: ${WOODY_REGISTRY:-ghcr.io/mrcookiedoo/restreamer-woody}-chatbot:${WOODY_VERSION:-local}
+    restart: unless-stopped
+    depends_on: [studio]
+    environment:
+      WOODY_API: http://studio:8090/api/woody/v1
+      WOODY_BOT_TOKEN: ${WOODY_BOT_TOKEN:?Run python3 scripts/setup.py first}
+      TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID:-}
+      TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET:-}
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+    volumes:
+      - bot-data:/data
+    networks: [studio]
+
+networks:
+  studio:
+volumes:
+  core-config:
+  core-data:
+  studio-data:
+  bot-data:

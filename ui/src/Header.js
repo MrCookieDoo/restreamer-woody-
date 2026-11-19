@@ -275,6 +275,18 @@ function HeaderMenu(props) {
 							<Trans>System</Trans>
 						</MenuItem>
 					)}
+					<MenuItem component="a" href="#/studio">
+						<ListItemIcon>
+							<VideocamIcon fontSize="small" />
+						</ListItemIcon>
+						Regie
+					</MenuItem>
+					<MenuItem component="a" href="#/chatbot">
+						<ListItemIcon>
+							<LayersIcon fontSize="small" />
+						</ListItemIcon>
+						Chatbot
+					</MenuItem>
 					<Divider />
 					<MenuItem onClick={() => setAbout(true)}>
 						<ListItemIcon>

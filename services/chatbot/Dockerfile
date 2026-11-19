@@ -1,0 +1,6 @@
+FROM node:22.14.0-bookworm-slim
+WORKDIR /app
+COPY . ./
+RUN npm ci && npm cache clean --force && mkdir /data && chown node /data && chmod -R a+rX /app
+USER node
+CMD ["npm", "start"]

@@ -2,6 +2,8 @@ import React from 'react';
 import { Route, Navigate, Routes, HashRouter as DOMRouter } from 'react-router-dom';
 
 import Views from './views';
+import Studio from './views/Woody/Studio';
+import Chatbot from './views/Woody/Chatbot';
 
 export default function Router(props) {
 	if (props.restreamer === null) {
@@ -14,6 +16,8 @@ export default function Router(props) {
 		<DOMRouter>
 			<Routes>
 				<Route path="/" element={<Views.ChannelSelect channelid={channelid} />} />
+				<Route path="/studio" element={<Studio restreamer={props.restreamer} />} />
+				<Route path="/chatbot" element={<Chatbot restreamer={props.restreamer} />} />
 				<Route path="/playersite" element={<Views.Playersite restreamer={props.restreamer} />} />
 				<Route path="/settings" element={<Views.Settings restreamer={props.restreamer} />} />
 				<Route path="/settings/:tab" element={<Views.Settings restreamer={props.restreamer} />} />

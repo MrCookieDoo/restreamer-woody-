@@ -1,3 +1,30 @@
+# Restreamer Woody
+
+Uitbreiding van de bestaande datarhei Restreamer UI en Core voor circa 13
+Reolink-/Axis-camera’s, één hoofdstream met 1 groot + 5 kleine beelden, automatische
+camerawissels, blijvende camerablokkeringen en optionele Twitch-/YouTube-chatregie.
+OBS is niet nodig. Bestaande kanalen en publicatiebestemmingen blijven beschikbaar.
+
+```sh
+python3 scripts/setup.py
+docker compose up -d --build
+```
+
+Open `http://localhost:8080/ui/`, log in met de lokale `.env`-gegevens en kies
+**Regie** in het hoofdmenu. Begin met een proefinstallatie voordat je bestaande
+uitzendingen overzet.
+
+- [Installatie, bestaande volumes en hardware](docs/INSTALL.md)
+- [Twitch-/YouTube-accountkoppeling en chatcommando’s](docs/CHATBOT.md)
+- [Tests en acceptatie op locatie](docs/TESTING.md)
+- [Herkomst van de bestaande UI](ui/UPSTREAM.md)
+
+De bot staat standaard uit en gebruikt eerst simulatiemodus. De mediacompositor
+is een aanvullende service; de onderstaande upstream-documentatie blijft van
+toepassing op Restreamer zelf.
+
+---
+
 <h1 align="center">Restreamer</h1>
 <h3 align="center">A really nice and free alternative for handling live streams.</h3>
 <p align="center">

@@ -217,6 +217,23 @@ class Restreamer {
 
 	// Login, Logout and Token handling
 
+	// Woody uses the same Core access token and refresh flow as existing views.
+	async StudioRequest(method, path, body) {
+		const [value, error] = await this._call(this.api._call, method, '/woody/v1' + path, {
+			headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+			...(body === undefined ? {} : { body: JSON.stringify(body) }),
+			expect: 'json',
+		});
+		if (error) {
+			throw new Error(error.message?.detail || (typeof error.message === 'string' ? error.message : 'Studio is niet bereikbaar'));
+		}
+		return value;
+	}
+
+	async ReloadChannels() {
+		await this._discoverChannels();
+	}
+
 	async Validate() {
 		let token = this._getRefreshToken();
 		if (token !== null) {

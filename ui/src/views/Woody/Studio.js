@@ -1,0 +1,543 @@
+import React from 'react';
+import {
+	Alert,
+	Box,
+	Button,
+	Card,
+	CardContent,
+	Chip,
+	CircularProgress,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
+	FormControlLabel,
+	Grid,
+	MenuItem,
+	Stack,
+	Switch,
+	TextField,
+	Typography,
+} from '@mui/material';
+import VideocamIcon from '@mui/icons-material/Videocam';
+import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import Player from '../../misc/Player';
+import useStudio from './useStudio';
+
+const areas = ['2 / 2 / 4 / 4', '2 / 1 / 3 / 2', '3 / 1 / 4 / 2', '4 / 1 / 5 / 2', '4 / 2 / 5 / 3', '4 / 3 / 5 / 4'];
+
+export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwitch, disabled, color = '#85532d', border = 4 }) {
+	return (
+		<Box
+			sx={{
+				display: 'grid',
+				gridTemplateColumns: 'repeat(3, 1fr)',
+				gridTemplateRows: '0 repeat(3, 1fr)',
+				aspectRatio: '16 / 9',
+				background: color,
+				gap: `${border}px`,
+				p: `${border}px`,
+				borderRadius: 1,
+				overflow: 'hidden',
+			}}
+		>
+			{(safe || full ? [0] : [0, 1, 2, 3, 4, 5]).map((i) => {
+				const cid = safe ? null : slots[i];
+				const camera = cameras[cid];
+				const visible = camera && !camera.hidden && camera.state === 'online';
+				return (
+					<Box
+						component="button"
+						key={i}
+						aria-label={visible ? `Maak ${camera.name} groot` : `Wachtbeeld kader ${i + 1}`}
+						disabled={disabled || !visible || i === 0}
+						onClick={() => onSwitch?.(cid)}
+						sx={{
+							gridArea: safe || full ? '2 / 1 / 5 / 4' : areas[i],
+							position: 'relative',
+							minWidth: 0,
+							border: 0,
+							p: 0,
+							background: '#101412',
+							color: 'white',
+							overflow: 'hidden',
+							cursor: i > 0 && visible ? 'pointer' : 'default',
+							'&:focus-visible': { outline: '3px solid white', outlineOffset: -3 },
+						}}
+					>
+						{visible && (
+							<Box
+								component="img"
+								alt=""
+								src={restreamer.GetChannelAddress('snapshot+memfs', cid)}
+								sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+							/>
+						)}
+						{!visible && (
+							<Stack sx={{ height: '100%' }} justifyContent="center" alignItems="center">
+								<VideocamIcon />
+								<Typography variant="caption">Wachtbeeld</Typography>
+							</Stack>
+						)}
+						<Box
+							sx={{
+								position: 'absolute',
+								top: 0,
+								left: 0,
+								right: 0,
+								p: 0.5,
+								background: '#0009',
+								textAlign: 'center',
+								fontSize: { xs: 10, md: 13 },
+							}}
+						>
+							{visible ? camera.name : 'Wachtbeeld'}
+							{i === 0 && visible ? ' · AUDIO' : ''}
+						</Box>
+					</Box>
+				);
+			})}
+		</Box>
+	);
+}
+
+export default function Studio({ restreamer }) {
+	const { state, error, busy, request } = useStudio(restreamer);
+	const [channels, setChannels] = React.useState([]);
+	const [channel, setChannel] = React.useState('');
+	const [alias, setAlias] = React.useState('');
+	const [scene, setScene] = React.useState(null);
+	const [editing, setEditing] = React.useState(null);
+	const [interval, setIntervalValue] = React.useState('180');
+	const [notice, setNotice] = React.useState('');
+	React.useEffect(() => {
+		restreamer
+			.StudioRequest('GET', '/channels')
+			.then(setChannels)
+			.catch(() => {});
+	}, [restreamer]);
+	React.useEffect(() => {
+		if (state?.rotation.interval_seconds) setIntervalValue(String(state.rotation.interval_seconds));
+	}, [state?.rotation.interval_seconds]);
+	const patchProgram = (body) => request('PATCH', '/program', body);
+	const switchCamera = (camera) => request('POST', '/program/switch', { camera });
+	const provision = async () => {
+		const result = await request('POST', '/program/channel');
+		if (result) {
+			await restreamer.ReloadChannels();
+			await restreamer.UpdatePlayer(result.channel_id);
+			const metadata = await restreamer.GetIngestMetadata(result.channel_id);
+			await restreamer.UpsertIngestSnapshot(result.channel_id, metadata.control);
+			await restreamer.StartIngestSnapshot(result.channel_id);
+			setNotice('Woody Hoofdstream is beschikbaar. Open het kanaal om publicaties toe te voegen.');
+		}
+	};
+	const add = async () => {
+		if (await request('POST', '/cameras', { channel_id: channel, alias, chat_enabled: false })) {
+			setChannel('');
+			setAlias('');
+		}
+	};
+	if (!state) return <Box sx={{ p: 4 }}>{error ? <Alert severity="error">{error}</Alert> : <CircularProgress />}</Box>;
+	const { program, cameras, rotation } = state;
+	const list = Object.entries(cameras);
+	return (
+		<Box sx={{ px: { xs: 2, md: 5 }, pb: 8 }}>
+			<Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={3}>
+				<Box>
+					<Typography variant="h4">Regie</Typography>
+					<Typography color="text.secondary">Eén uitzending · tot 13 camera’s · geluid volgt het grote beeld</Typography>
+				</Box>
+				<Stack direction="row" spacing={1}>
+					<Chip label={`Mixer: ${state.engine.state}`} color={state.engine.state === 'running' ? 'success' : 'warning'} />
+					<Button href="#/chatbot">Chatbot</Button>
+				</Stack>
+			</Stack>
+			{error && (
+				<Alert severity="error" sx={{ mb: 2 }}>
+					{error}
+				</Alert>
+			)}
+			{notice && (
+				<Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>
+					{notice}
+				</Alert>
+			)}
+			{program.safe && (
+				<Alert severity="warning" sx={{ mb: 2 }}>
+					Algemeen wachtbeeld actief. Chatbediening is vergrendeld.
+				</Alert>
+			)}
+			<Grid container spacing={3}>
+				<Grid item xs={12} lg={8}>
+					<Card>
+						<CardContent>
+							<Stack direction="row" justifyContent="space-between" mb={2}>
+								<Typography variant="h6">Bevestigde indeling</Typography>
+								<Chip
+									size="small"
+									label={program.pinned ? 'Vastgezet' : rotation.enabled ? `Wissel over ${program.next_switch_in}s` : 'Handmatige regie'}
+								/>
+							</Stack>
+							<CameraBoard
+								slots={program.slots}
+								cameras={cameras}
+								restreamer={restreamer}
+								safe={program.safe}
+								full={program.layout === 'full'}
+								color={program.border_color}
+								border={program.border_width}
+								onSwitch={switchCamera}
+								disabled={busy}
+							/>
+							<Typography variant="caption" color="text.secondary">
+								Bediening met momentopnamen. De daadwerkelijke stream staat hieronder; previews en platforms hebben vertraging.
+							</Typography>
+							<Stack direction="row" flexWrap="wrap" gap={1} mt={2}>
+								<Button variant="contained" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'six' })}>
+									1 groot + 5 klein
+								</Button>
+								<Button disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'full' })}>
+									Volledig scherm
+								</Button>
+								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ pinned: !program.pinned })}>
+									{program.pinned ? 'Vrijgeven' : 'Vastzetten'}
+								</Button>
+								<Button color="error" variant="contained" onClick={() => patchProgram({ safe: true })}>
+									Alles naar wachtbeeld
+								</Button>
+							</Stack>
+						</CardContent>
+					</Card>
+					<Card sx={{ mt: 3 }}>
+						<CardContent>
+							<Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+								<Typography variant="h6">Woody Hoofdstream</Typography>
+								<Button disabled={busy} onClick={provision}>
+									Hoofdkanaal gereedmaken
+								</Button>
+							</Stack>
+							<Player source={restreamer.GetChannelAddress('hls+memfs', state.program_channel_id)} />
+							<Button href={`#/${state.program_channel_id}`} sx={{ mt: 1 }}>
+								Open kanaal en publicaties
+							</Button>
+						</CardContent>
+					</Card>
+				</Grid>
+				<Grid item xs={12} lg={4}>
+					<Card>
+						<CardContent>
+							<Typography variant="h6" mb={2}>
+								Automatische ronde
+							</Typography>
+							<Stack direction="row" spacing={1} alignItems="center">
+								<TextField
+									label="Interval in seconden"
+									type="number"
+									value={interval}
+									onChange={(e) => setIntervalValue(e.target.value)}
+									inputProps={{ min: 10, max: 86400 }}
+									size="small"
+								/>
+								<Button
+									disabled={busy || !Number.isInteger(Number(interval)) || Number(interval) < 10 || Number(interval) > 86400}
+									onClick={() => request('PUT', '/rotation', { ...rotation, interval_seconds: Number(interval) })}
+								>
+									Opslaan
+								</Button>
+							</Stack>
+							<Button
+								sx={{ mt: 2 }}
+								startIcon={rotation.enabled ? <PauseIcon /> : <PlayArrowIcon />}
+								disabled={busy}
+								onClick={() => request('PUT', '/rotation', { ...rotation, enabled: !rotation.enabled })}
+							>
+								{rotation.enabled ? 'Ronde pauzeren' : 'Ronde hervatten'}
+							</Button>
+							<Stack mt={2} spacing={1}>
+								{rotation.order.map((cid, index) => (
+									<Stack key={cid} direction="row" alignItems="center" spacing={1}>
+										<Typography sx={{ flex: 1 }}>
+											{index + 1}. {cameras[cid]?.name}
+										</Typography>
+										<Button
+											size="small"
+											disabled={busy || index === 0}
+											aria-label={`Zet ${cameras[cid]?.name} eerder`}
+											onClick={() => {
+												const order = [...rotation.order];
+												[order[index - 1], order[index]] = [order[index], order[index - 1]];
+												request('PUT', '/rotation', { ...rotation, order });
+											}}
+										>
+											↑
+										</Button>
+									</Stack>
+								))}
+							</Stack>
+						</CardContent>
+					</Card>
+					<Card sx={{ mt: 3 }}>
+						<CardContent>
+							<Typography variant="h6" mb={2}>
+								Scènes
+							</Typography>
+							<Stack spacing={1}>
+								{Object.values(state.scenes).map((s) => (
+									<Stack key={s.alias} direction="row" spacing={1}>
+										<Button
+											sx={{ flex: 1, justifyContent: 'flex-start' }}
+											disabled={busy}
+											onClick={() => request('POST', `/scenes/${s.alias}/apply`)}
+										>
+											{s.name}
+										</Button>
+										<Button size="small" onClick={() => setScene({ ...s })}>
+											Bewerk
+										</Button>
+										<Button size="small" color="error" disabled={busy} onClick={() => request('DELETE', `/scenes/${s.alias}`)}>
+											Wis
+										</Button>
+									</Stack>
+								))}
+							</Stack>
+							<Button
+								sx={{ mt: 2 }}
+								onClick={() => setScene({ alias: '', name: '', layout: program.layout, cameras: [...program.slots], chat_enabled: false })}
+							>
+								Scène samenstellen
+							</Button>
+						</CardContent>
+					</Card>
+					<Card sx={{ mt: 3 }}>
+						<CardContent>
+							<Typography variant="h6" mb={2}>
+								Kaderranden
+							</Typography>
+							<Stack direction="row" spacing={2}>
+								<TextField
+									label="Kleur"
+									type="color"
+									value={program.border_color}
+									onChange={(e) => patchProgram({ border_color: e.target.value })}
+								/>
+								<TextField
+									select
+									label="Dikte"
+									value={program.border_width}
+									onChange={(e) => patchProgram({ border_width: Number(e.target.value) })}
+								>
+									{[0, 2, 4, 6, 8, 12].map((v) => (
+										<MenuItem key={v} value={v}>
+											{v}px
+										</MenuItem>
+									))}
+								</TextField>
+							</Stack>
+						</CardContent>
+					</Card>
+				</Grid>
+				<Grid item xs={12}>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+						<Typography variant="h5">
+							Camera’s{' '}
+							<Typography component="span" color="text.secondary">
+								{list.length}/13
+							</Typography>
+						</Typography>
+						<Button href="#/">Bestaande kanalen beheren</Button>
+					</Stack>
+					<Card sx={{ mb: 2 }}>
+						<CardContent>
+							<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+								<TextField
+									select
+									label="Bestaand Restreamer-kanaal"
+									value={channel}
+									onChange={(e) => setChannel(e.target.value)}
+									sx={{ minWidth: 240 }}
+									size="small"
+								>
+									{channels.map((c) => (
+										<MenuItem key={c.channel_id} value={c.channel_id}>
+											{c.name}
+										</MenuItem>
+									))}
+								</TextField>
+								<TextField label="Chatalias, bijvoorbeeld tuin" value={alias} onChange={(e) => setAlias(e.target.value)} size="small" />
+								<Button
+									variant="contained"
+									disabled={busy || !channel || !/^[a-z][a-z0-9-]{0,31}$/.test(alias) || list.length >= 13}
+									onClick={add}
+								>
+									Camera toevoegen
+								</Button>
+								<Button
+									onClick={async () => {
+										const result = await request('GET', '/channels');
+										if (result) setChannels(result);
+									}}
+								>
+									Kanalen vernieuwen
+								</Button>
+							</Stack>
+						</CardContent>
+					</Card>
+					<Grid container spacing={2}>
+						{list.map(([cid, c]) => (
+							<Grid item key={cid} xs={12} sm={6} md={4} xl={3}>
+								<Card sx={{ border: c.hidden ? '1px solid #ef5350' : undefined }}>
+									<CardContent>
+										<Stack direction="row" justifyContent="space-between" alignItems="center">
+											<Typography variant="h6">{c.name}</Typography>
+											<Chip
+												size="small"
+												label={c.hidden ? 'Verborgen' : c.state}
+												color={c.hidden ? 'error' : c.state === 'online' ? 'success' : 'default'}
+											/>
+										</Stack>
+										<Typography variant="body2" color="text.secondary">
+											!camera {c.alias}
+											{program.audio_camera === cid ? ' · Audio actief' : ''}
+										</Typography>
+										<Stack direction="row" spacing={1} mt={2}>
+											<Button variant="outlined" disabled={busy || c.hidden || c.state !== 'online'} onClick={() => switchCamera(cid)}>
+												Groot zetten
+											</Button>
+											<Button
+												variant="contained"
+												color={c.hidden ? 'success' : 'error'}
+												onClick={() => request('PUT', `/cameras/${cid}/hidden`, { hidden: !c.hidden })}
+											>
+												{c.hidden ? 'Vrijgeven' : 'Verbergen + dempen'}
+											</Button>
+										</Stack>
+										<Stack direction="row" justifyContent="space-between" mt={1}>
+											<FormControlLabel
+												label="Via chat"
+												control={
+													<Switch
+														checked={c.chat_enabled}
+														disabled={busy}
+														onChange={(e) => request('PATCH', `/cameras/${cid}`, { chat_enabled: e.target.checked })}
+													/>
+												}
+											/>
+											<Button onClick={() => setEditing({ cid, alias: c.alias })}>Bewerk</Button>
+										</Stack>
+									</CardContent>
+								</Card>
+							</Grid>
+						))}
+					</Grid>
+				</Grid>
+			</Grid>
+			<Dialog open={!!scene} onClose={() => setScene(null)} fullWidth maxWidth="sm">
+				<DialogTitle>Scène samenstellen</DialogTitle>
+				<DialogContent>
+					<Stack spacing={2} mt={1}>
+						<TextField label="Naam" value={scene?.name || ''} onChange={(e) => setScene({ ...scene, name: e.target.value })} />
+						<TextField label="Chatalias" value={scene?.alias || ''} onChange={(e) => setScene({ ...scene, alias: e.target.value })} />
+						<TextField select label="Indeling" value={scene?.layout || 'six'} onChange={(e) => setScene({ ...scene, layout: e.target.value })}>
+							{[
+								['six', '1 groot + 5 klein'],
+								['full', 'Volledig scherm'],
+								['safe', 'Wachtbeeld'],
+							].map(([v, text]) => (
+								<MenuItem key={v} value={v}>
+									{text}
+								</MenuItem>
+							))}
+						</TextField>
+						{scene &&
+							scene.layout !== 'safe' &&
+							Array.from({ length: scene.layout === 'full' ? 1 : 6 }, (_, i) => (
+								<TextField
+									select
+									key={i}
+									label={i === 0 ? 'Grote camera' : `Klein kader ${i}`}
+									value={scene.cameras[i] || ''}
+									onChange={(e) => {
+										const cams = [...scene.cameras];
+										cams[i] = e.target.value;
+										setScene({ ...scene, cameras: cams });
+									}}
+								>
+									<MenuItem value="">Wachtbeeld</MenuItem>
+									{list.map(([cid, c]) => (
+										<MenuItem value={cid} key={cid}>
+											{c.name}
+										</MenuItem>
+									))}
+								</TextField>
+							))}
+						<FormControlLabel
+							label="Scène beschikbaar via chat"
+							control={<Switch checked={scene?.chat_enabled || false} onChange={(e) => setScene({ ...scene, chat_enabled: e.target.checked })} />}
+						/>
+						<Typography variant="caption">
+							Alle gebruikte camera’s moeten ook voor chat vrijgegeven zijn. Verborgen camera’s blijven afgeschermd.
+						</Typography>
+					</Stack>
+				</DialogContent>
+				<DialogActions>
+					<Button onClick={() => setScene(null)}>Annuleren</Button>
+					<Button
+						disabled={busy || !scene?.name || !/^[a-z][a-z0-9-]{0,31}$/.test(scene?.alias || '')}
+						onClick={async () => {
+							if (
+								await request('PUT', '/scenes', {
+									...scene,
+									cameras: scene.layout === 'safe' ? [] : scene.cameras.map((c) => c || null).slice(0, scene.layout === 'full' ? 1 : 6),
+								})
+							)
+								setScene(null);
+						}}
+					>
+						Opslaan
+					</Button>
+				</DialogActions>
+			</Dialog>
+			<Dialog open={!!editing} onClose={() => setEditing(null)}>
+				<DialogTitle>Camera bewerken</DialogTitle>
+				<DialogContent>
+					<TextField
+						sx={{ mt: 1 }}
+						label="Chatalias"
+						value={editing?.alias || ''}
+						onChange={(e) => setEditing({ ...editing, alias: e.target.value })}
+					/>
+				</DialogContent>
+				<DialogActions>
+					<Button
+						color="error"
+						disabled={busy}
+						onClick={async () => {
+							if (await request('DELETE', `/cameras/${editing.cid}`)) setEditing(null);
+						}}
+					>
+						Uit regie verwijderen
+					</Button>
+					<Button
+						disabled={busy}
+						onClick={async () => {
+							const camera = cameras[editing.cid];
+							if (camera) await request('POST', '/cameras', { channel_id: editing.cid, alias: camera.alias, chat_enabled: camera.chat_enabled });
+						}}
+					>
+						Bron vernieuwen
+					</Button>
+					<Button
+						disabled={busy || !/^[a-z][a-z0-9-]{0,31}$/.test(editing?.alias || '')}
+						onClick={async () => {
+							if (await request('PATCH', `/cameras/${editing.cid}`, { alias: editing.alias })) setEditing(null);
+						}}
+					>
+						Opslaan
+					</Button>
+				</DialogActions>
+			</Dialog>
+		</Box>
+	);
+}

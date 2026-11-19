@@ -1,0 +1,11 @@
+:80 {
+    encode gzip
+    handle /api/woody/* {
+        reverse_proxy studio:8090 {
+            flush_interval -1
+        }
+    }
+    handle {
+        reverse_proxy core:8080
+    }
+}

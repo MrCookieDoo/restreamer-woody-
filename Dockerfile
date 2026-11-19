@@ -1,15 +1,20 @@
-ARG RESTREAMER_UI_IMAGE=datarhei/restreamer-ui:latest
-ARG CORE_IMAGE=datarhei/base:alpine-core-latest
-ARG FFMPEG_IMAGE=datarhei/base:alpine-ffmpeg-latest
+ARG NODE_IMAGE=node:22.14.0-alpine3.21
+ARG CORE_IMAGE=datarhei/base:core16.16.0-alpine3.20
+ARG FFMPEG_IMAGE=datarhei/base:ffmpeg6.1.1-alpine3.20
 
-FROM $RESTREAMER_UI_IMAGE AS restreamer-ui
+FROM $NODE_IMAGE AS restreamer-ui
+WORKDIR /ui
+COPY ui/ ./
+ENV PUBLIC_URL=./
+RUN yarn install --frozen-lockfile --non-interactive --ignore-engines && \
+    yarn build && yarn cache clean && rm -rf node_modules
 FROM $CORE_IMAGE AS core
 FROM $FFMPEG_IMAGE
 
 COPY --from=core /core /core
 COPY --from=restreamer-ui /ui/build /core/ui
 
-ADD https://raw.githubusercontent.com/datarhei/restreamer/2.x/CHANGELOG.md /core/ui/CHANGELOG.md
+COPY CHANGELOG.md /core/ui/CHANGELOG.md
 COPY ./run.sh /core/bin/run.sh
 COPY ./ui-root /core/ui-root
 
