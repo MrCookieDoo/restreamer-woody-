@@ -238,3 +238,31 @@ maar wist geen reeds verzonden of gebufferde beelden. De hulp maakt geen ontbrek
 oude HLS-kanalen aan en start geen gestopte NVR-containers. Het aanleveren van
 16 bronadressen verandert de huidige Studio-limiet van 13 geregistreerde camera’s
 niet.
+
+## Hoofdstream laadt niet of Studio staat stil
+
+Voer in de projectmap uit terwijl de proefinstallatie draait:
+
+```powershell
+git pull --ff-only
+.\studio-diagnostics.cmd
+```
+
+Dit werkt ook met de al draaiende Studio-image; een build of herstart is voor
+deze controle niet nodig. De standaardcontainer is `woody-test-studio-1`.
+Gebruik bij een andere naam `-Container NAAM`.
+
+Het rapport toont het aantal gekoppelde/online camera's, de mixerframecounter,
+de ontvangststatus van het hoofdkanaal in Core en de beschikbaarheid van zijn
+HLS-playlist. Na drie seconden worden de tellers opnieuw gelezen. Er worden
+geen bronadressen, wachtwoorden, tokens, procesopdrachten of ruwe logs afgedrukt;
+de controle wijzigt geen instellingen en stopt geen containers.
+
+`program.exists: false` met HTTP 404 betekent dat het hoofdkanaal ontbreekt:
+gebruik in Studio **Hoofdkanaal gereedmaken**. Een stijgende Studio-counter met
+een stilstaande Core-counter of ontbrekende playlist vraagt onderzoek van de
+RTMP-/HLS-uitvoer. De Studio-counter telt aangeboden frames en bewijst op
+zichzelf geen succesvolle encodering of aflevering.
+
+De bovenste regievakken gebruiken momenteel momentopnamen, geen livevideo.
+Beoordeel vloeiend beeld daarom in de speler **Woody Hoofdstream**.

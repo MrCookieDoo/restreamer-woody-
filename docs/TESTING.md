@@ -128,3 +128,12 @@ status 200.
 `tests/test_engine_hls.py` in de Studio-service test een echte HTTP HLS-stream met
 15 fps en AAC-audio, twee gelijktijdige lezers en behoud van het producerproces.
 De Studio-image bevat daarvoor ook de FFmpeg-testgenerator.
+
+## Leesbaar Studio-statusrapport
+
+`tests/test_diagnostics.py` in de Studio-service controleert dat het uitleesrapport
+ontbrekende kanalen onderscheidt van aanmeldfouten, alleen geselecteerde
+statuswaarden en numerieke tellers afdrukt en geen bronadressen, wachtwoorden,
+opdrachten of ruwe logs overneemt. De Windows-launcher stuurt het script via
+stdin naar de bestaande Studio-container; er is geen Python-installatie op
+Windows of herbouw van de image nodig.

@@ -143,3 +143,13 @@ HLS-uitgang via `host.docker.internal:8080` in de nieuwe Restreamer beeld geeft.
 Ontvangst van deze bron in diens Studio is nog niet bevestigd.
 
 De volledige backend/media-suite omvat na deze toevoeging 38 geslaagde tests.
+
+## Hoofdstreamdiagnose
+
+De gebruiker meldt dat de gewone camerakanalen werken maar de Studio-hoofdstream
+niet laadt. De containerstatistieken tonen circa 320% CPU voor Studio, 136% voor
+de nieuwe Core en 820% voor de bestaande Woody. Die momentopname bewijst geen
+specifieke oorzaak. `studio-diagnostics.cmd` leest mixer-, Core- en HLS-status en
+framevoortgang zonder een build of wijzigingen aan de draaiende containers.
+Drie gerichte tests van de rapportage slagen. De oorzaak op de Windows-pc en
+herstel van diens hoofdstream zijn nog niet bevestigd.
