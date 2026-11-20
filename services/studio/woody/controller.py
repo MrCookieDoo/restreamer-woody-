@@ -104,9 +104,11 @@ class Controller:
             # Keep the slot assignment; the render mask is enforced on every frame.
             self.changed()
 
-    def set_health(self, cid, state, audio=False):
+    def set_health(self, cid, state, audio=False, reason=""):
         with self.lock:
             status = {"state": state, "audio": audio}
+            if reason:
+                status["reason"] = reason
             if self.health.get(cid) != status:
                 self.health[cid] = status
                 self.revision += 1

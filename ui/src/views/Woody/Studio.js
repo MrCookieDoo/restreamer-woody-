@@ -28,6 +28,18 @@ import useStudio from './useStudio';
 // The upstream theme styles MuiDialog like an inline paper; restore the modal root locally.
 const dialogLayout = { p: 0, width: 'auto', maxWidth: 'none', maxHeight: 'none', overflow: 'visible', bgcolor: 'transparent' };
 
+const sourceReasons = {
+	'waiting-for-frames': 'Verbinding wordt gemaakt; wacht op camerabeeld.',
+	'connection-error': 'Studio kan de camerabron niet bereiken.',
+	'authentication-error': 'De camerabron weigert de aanmelding.',
+	'source-not-found': 'De camerabron is niet gevonden.',
+	'format-error': 'Het beeldformaat kon niet worden verwerkt.',
+	'decoder-missing': 'Een decoder voor deze camerabron ontbreekt.',
+	'decode-error': 'De camerastream kon niet worden gedecodeerd.',
+	'stream-ended': 'De camerabron heeft de verbinding beëindigd.',
+	'pipeline-error': 'De camera-ontvangst kon niet worden gestart.',
+};
+
 const areas = ['2 / 2 / 4 / 4', '2 / 1 / 3 / 2', '3 / 1 / 4 / 2', '4 / 1 / 5 / 2', '4 / 2 / 5 / 3', '4 / 3 / 5 / 4'];
 
 export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwitch, disabled, color = '#85532d', border = 4 }) {
@@ -463,6 +475,11 @@ export default function Studio({ restreamer }) {
 												color={c.hidden ? 'error' : c.state === 'online' ? 'success' : 'default'}
 											/>
 										</Stack>
+										{!c.hidden && c.state !== 'online' && c.reason && (
+											<Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+												{sourceReasons[c.reason] || 'Studio ontvangt nog geen camerabeeld.'}
+											</Typography>
+										)}
 										<Typography variant="body2" color="text.secondary">
 											!camera {c.alias}
 											{program.audio_camera === cid ? ' · Audio actief' : ''}

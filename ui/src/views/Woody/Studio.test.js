@@ -103,3 +103,12 @@ test('a Studio render error presents recovery controls instead of a blank page',
 	expect(screen.getByRole('button', { name: 'Studio opnieuw laden' })).toBeEnabled();
 	log.mockRestore();
 });
+
+test('an offline camera shows a readable reception reason while its emergency control remains available', async () => {
+	const current = state();
+	current.cameras['garden-id'] = { ...camera, state: 'error', reason: 'format-error' };
+	wrap(<Studio restreamer={restreamer(current)} />);
+	await screen.findByText('Het beeldformaat kon niet worden verwerkt.');
+	expect(screen.getByRole('button', { name: 'Groot zetten' })).toBeDisabled();
+	expect(screen.getByRole('button', { name: 'Verbergen + dempen' })).toBeEnabled();
+});

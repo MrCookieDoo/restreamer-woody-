@@ -70,3 +70,23 @@ werkelijk afspelende HLS-testvideo. De lokale FFmpeg 7.1.5-versie vereist in die
 browserproef een expliciete compatibiliteitsfixture voor de gepinde 6.1.1-versie;
 dit verandert geen productiecode. Deze proef valideert de bediening en geometrie,
 geen nieuwe GStreamer-capaciteits- of hardwareclaim.
+
+## Netwerkcamera’s met lagere beeldsnelheid
+
+Een echte lokale RTSP-proef reproduceerde dat 15 fps met beeld én geluid offline
+bleef, terwijl 25 fps met audio wel werkte. De oude `videorate drop-only=true`
+kon lagere beeldsnelheden niet naar 25 fps omzetten. Ook wachtte een ongebruikte
+audiotak op preroll bij bronnen zonder audio.
+
+De mixer dupliceert nu waar nodig frames, blokkeert niet op ontbrekende audio,
+paceert ontvangen samples en gebruikt de werkelijke uitgangsklok. Er is meer
+opstarttijd voor netwerkbuffers; foutredenen blijven zichtbaar zonder bron-URL’s
+of wachtwoorden te tonen. De wijziging past geen bestaande Core-kanalen aan.
+
+28 backend/media-tests slagen, inclusief echte lokale RTSP-bronnen van 5, 15 en
+25 fps met en zonder audio, decodeerpixels, stilte, verbindingsweigering,
+13 bronnen, 100 wissels en uitgangsherstel. Deze ronde gebruikte native
+GStreamer 1.26.2; de image blijft Ubuntu 24.04/GStreamer 1.24 en bevat de kleine
+RTSP-serverbibliotheek voor dezelfde CI-regressies. UI: 86 tests en productiebuild
+geslaagd. De echte cameramodellen op de doelinstallatie zijn nog niet beschikbaar
+in deze workspace.

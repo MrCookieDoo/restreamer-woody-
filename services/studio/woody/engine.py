@@ -148,10 +148,10 @@ class GstEngine:
         Gst = self.Gst
         self.controller.set_health(cid, "connecting")
         camera = {"pipeline": None, "uri": uri, "frame": None, "last": 0, "since": 0, "started": time.monotonic(),
-                  "audio": bytearray(), "audio_last": 0, "lock": threading.RLock(), "retry": 0, "error": False}
+                  "audio": bytearray(), "audio_last": 0, "lock": threading.RLock(), "retry": 0, "error": False, "reason": ""}
         self.cameras[cid] = camera
-        video = 'queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! videoconvert ! videoscale add-borders=true ! videorate drop-only=true ! video/x-raw,format=I420,width=1280,height=720,framerate=25/1,pixel-aspect-ratio=1/1,interlace-mode=progressive ! appsink name=frames emit-signals=true max-buffers=1 drop=true sync=false'
-        audio = 'queue max-size-buffers=5 max-size-bytes=0 max-size-time=0 leaky=downstream ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000,layout=interleaved ! appsink name=sound emit-signals=true max-buffers=5 drop=true sync=false'
+        video = 'queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! videoconvert ! videoscale add-borders=true ! videorate ! video/x-raw,format=I420,width=1280,height=720,framerate=25/1,pixel-aspect-ratio=1/1,interlace-mode=progressive ! appsink name=frames emit-signals=true max-buffers=1 drop=true sync=true async=false'
+        audio = 'queue max-size-buffers=5 max-size-bytes=0 max-size-time=0 leaky=downstream ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000,layout=interleaved ! appsink name=sound emit-signals=true max-buffers=5 drop=true sync=true async=false'
         try:
             if uri.startswith("test://"):
                 if not self.allow_test:
@@ -185,7 +185,8 @@ class GstEngine:
         except Exception:
             camera["error"] = True
             camera["retry"] = time.monotonic() + 3
-            self.controller.set_health(cid, "error")
+            camera["reason"] = "pipeline-error"
+            self.controller.set_health(cid, "error", reason=camera["reason"])
 
     def _source_setup(self, decode, source):
         # RTSP over TCP avoids lost UDP fragments on typical camera networks.
@@ -227,7 +228,25 @@ class GstEngine:
             camera = self.cameras.get(cid)
             if camera:
                 camera["error"], camera["retry"] = True, time.monotonic() + 3
-                self.controller.set_health(cid, "error")
+                camera["reason"] = "stream-ended" if message.type == self.Gst.MessageType.EOS else self._source_error_reason(message)
+                self.controller.set_health(cid, "error", reason=camera["reason"])
+
+    def _source_error_reason(self, message):
+        # Never expose the raw error/debug strings: they can contain credentials.
+        error, debug = message.parse_error()
+        if "not-negotiated" in (debug or ""):
+            return "format-error"
+        if "resource" in error.domain:
+            if error.code == int(self.Gst.ResourceError.NOT_AUTHORIZED):
+                return "authentication-error"
+            if error.code == int(self.Gst.ResourceError.NOT_FOUND):
+                return "source-not-found"
+            return "connection-error"
+        if "stream" in error.domain:
+            if error.code == int(self.Gst.StreamError.CODEC_NOT_FOUND):
+                return "decoder-missing"
+            return "decode-error"
+        return "pipeline-error"
 
     def _maintenance(self):
         if self.stopping:
@@ -246,8 +265,13 @@ class GstEngine:
             with camera["lock"]:
                 age = now - camera["last"]
                 online = age <= 2 and now - camera["since"] >= 3 and not camera["error"]
-                self.controller.set_health(cid, "online" if online else "offline" if age > 2 else "connecting", now - camera["audio_last"] < 1)
-                stalled = now - max(camera["last"], camera["started"]) > 8
+                warming = not camera["last"] and now - camera["started"] < 30
+                state = "online" if online else "error" if camera["error"] else "connecting" if age <= 2 or warming else "offline"
+                reason = camera["reason"] if camera["error"] else "" if online else "waiting-for-frames"
+                self.controller.set_health(cid, state, now - camera["audio_last"] < 1, reason=reason)
+                # HTTP/HLS sources may need several segments before their first
+                # decoded frame. Do not restart them during that initial buffer.
+                stalled = age > 8 if camera["last"] else now - camera["started"] > 30
             if (camera["error"] and now >= camera["retry"]) or stalled:
                 self._remove_camera(cid)
                 self._create_camera(cid, uri)
@@ -270,16 +294,29 @@ class GstEngine:
         buffer.duration = duration
         return buffer
 
+    def _running_time(self):
+        # PLAYING/preroll may complete after pipeline construction, particularly
+        # while camera decoders are starting. Wall time since construction can
+        # put frames seconds into the future, delaying a privacy mask or slate.
+        clock = self.output.get_clock()
+        base = self.output.get_base_time()
+        if clock is None or base in (0, self.Gst.CLOCK_TIME_NONE):
+            return None
+        return max(0, clock.get_time() - base)
+
     def _video_tick(self):
         if self.stopping:
             return False
         if not self.output or self.output_state == "error":
             return True
+        running = self._running_time()
+        if running is None:
+            return True
         p = self.controller.frame_state()
         positions = [(640, 0, 1280, 720), (0, 0, 640, 360), (0, 360, 640, 360), (0, 720, 640, 360), (640, 720, 640, 360), (1280, 720, 640, 360)]
         now = time.monotonic()
         # Use output-clock timestamps; never inherit unrelated camera clocks.
-        number = max(self.video_number, int((now - self.epoch) * self.fps))
+        number = max(self.video_number, running * self.fps // self.Gst.SECOND)
         duration = self.Gst.SECOND // self.fps
         if self.background_color != p["border_color"]:
             color = int(p["border_color"][1:], 16)
@@ -335,7 +372,10 @@ class GstEngine:
             return False
         if not self.output or self.output_state == "error":
             return True
-        target = int((time.monotonic() - self.epoch) * 50)
+        running = self._running_time()
+        if running is None:
+            return True
+        target = running * 50 // self.Gst.SECOND
         # GLib callbacks may run late under load. Emit all missing 20ms blocks,
         # rather than handing the AAC encoder a discontinuous sample clock.
         self.audio_number = max(self.audio_number, target - 10)
