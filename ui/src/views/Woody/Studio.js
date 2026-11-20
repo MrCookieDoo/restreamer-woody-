@@ -22,7 +22,7 @@ import {
 import VideocamIcon from '@mui/icons-material/Videocam';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import Player from '../../misc/Player';
+import ProgramPreview from './ProgramPreview';
 import useStudio from './useStudio';
 import useSlates from './useSlates';
 
@@ -219,6 +219,9 @@ export default function Studio({ restreamer }) {
 				</Box>
 				<Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
 					<Chip label={`Mixer: ${state.engine?.state || 'onbekend'}`} color={state.engine?.state === 'running' ? 'success' : 'warning'} />
+					{state.engine?.output_fps !== undefined && (
+						<Chip label={`Encoder: ${state.engine.output_fps} / ${state.engine.fps} fps`} color={state.engine.output_fps >= state.engine.fps * 0.85 ? 'success' : 'warning'} />
+					)}
 					<Button href="#/" variant="outlined">
 						Naar Restreamer
 					</Button>
@@ -251,46 +254,6 @@ export default function Studio({ restreamer }) {
 				<Grid item xs={12} md={8}>
 					<Card>
 						<CardContent>
-							<Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1} mb={2}>
-								<Typography variant="h6">Regie · 1 groot + 5 klein</Typography>
-								<Chip
-									size="small"
-									label={program.pinned ? 'Vastgezet' : rotation.enabled ? `Wissel over ${program.next_switch_in}s` : 'Handmatige regie'}
-								/>
-							</Stack>
-							<CameraBoard
-								slots={program.slots}
-								cameras={cameras}
-								slates={slates}
-								restreamer={restreamer}
-								safe={program.safe}
-								full={program.layout === 'full'}
-								color={program.border_color}
-								border={program.border_width}
-								onSwitch={switchCamera}
-								disabled={busy}
-							/>
-							<Typography variant="caption" color="text.secondary">
-								Bediening met momentopnamen. De daadwerkelijke stream staat hieronder; previews en platforms hebben vertraging.
-							</Typography>
-							<Stack direction="row" flexWrap="wrap" gap={1} mt={2}>
-								<Button variant="contained" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'six' })}>
-									1 groot + 5 klein
-								</Button>
-								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'full' })}>
-									Volledig scherm
-								</Button>
-								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ pinned: !program.pinned })}>
-									{program.pinned ? 'Vrijgeven' : 'Vastzetten'}
-								</Button>
-								<Button color="error" variant="contained" onClick={() => patchProgram({ safe: true })}>
-									Alles naar wachtbeeld
-								</Button>
-							</Stack>
-						</CardContent>
-					</Card>
-					<Card sx={{ mt: 3 }}>
-						<CardContent>
 							<Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={2}>
 								<Typography variant="h6">Woody Hoofdstream</Typography>
 								<Button variant="outlined" disabled={busy} onClick={provision}>
@@ -309,14 +272,54 @@ export default function Studio({ restreamer }) {
 									'& [data-vjs-player]': { width: '100%' },
 								}}
 							>
-								<Player key={previewVersion} source={restreamer.GetChannelAddress('hls+memfs', state.program_channel_id)} controls />
+								<ProgramPreview key={previewVersion} source={restreamer.GetChannelAddress('hls+memfs', state.program_channel_id)} />
 							</Box>
+							<Stack direction="row" flexWrap="wrap" gap={1} mt={2}>
+								<Button variant="contained" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'six' })}>
+									1 groot + 5 klein
+								</Button>
+								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'full' })}>
+									Volledig scherm
+								</Button>
+								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ pinned: !program.pinned })}>
+									{program.pinned ? 'Vrijgeven' : 'Vastzetten'}
+								</Button>
+								<Button color="error" variant="contained" onClick={() => patchProgram({ safe: true })}>
+									Alles naar wachtbeeld
+								</Button>
+							</Stack>
 							<Button variant="outlined" href={`#/${state.program_channel_id}`} sx={{ mt: 2, mr: 1 }}>
 								Open kanaal en publicaties
 							</Button>
 							<Button variant="outlined" onClick={() => setPreviewVersion((v) => v + 1)} sx={{ mt: 2 }}>
 								Preview vernieuwen
 							</Button>
+						</CardContent>
+					</Card>
+					<Card sx={{ mt: 3 }}>
+						<CardContent>
+							<Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1} mb={2}>
+								<Typography variant="h6">Camera kiezen · momentopnamen</Typography>
+								<Chip
+									size="small"
+									label={program.pinned ? 'Vastgezet' : rotation.enabled ? `Wissel over ${program.next_switch_in}s` : 'Handmatige regie'}
+								/>
+							</Stack>
+							<CameraBoard
+								slots={program.slots}
+								cameras={cameras}
+								slates={slates}
+								restreamer={restreamer}
+								safe={program.safe}
+								full={program.layout === 'full'}
+								color={program.border_color}
+								border={program.border_width}
+								onSwitch={switchCamera}
+								disabled={busy}
+							/>
+							<Typography variant="caption" color="text.secondary">
+								Deze foto’s vernieuwen elke vijf seconden. Klik op een klein kader om die camera groot te zetten. Bekijk het livebeeld hierboven.
+							</Typography>
 						</CardContent>
 					</Card>
 				</Grid>

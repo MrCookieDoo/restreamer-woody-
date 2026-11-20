@@ -49,6 +49,9 @@ class GstEngine:
         self.output = None
         self.loop = GLib.MainLoop()
         self.frames = self.audio_frames = self.restarts = 0
+        self.output_frames = 0
+        self.output_times = deque(maxlen=100)
+        self.video_cache = {}
         self.started = self.last_frame = 0
         self.output_state = "starting"
         self.previous_audio = None
@@ -58,9 +61,13 @@ class GstEngine:
         self.stopping = False
 
     def status(self):
+        times = tuple(self.output_times)
+        age = time.monotonic() - times[-1] if times else None
+        actual_fps = (len(times) - 1) / (times[-1] - times[0]) if len(times) > 1 and times[-1] > times[0] and age < 1 else 0
         return {"mode": "gstreamer", "state": self.output_state, "frames": self.frames, "restarts": self.restarts,
                 "uptime": round(time.monotonic() - self.started) if self.started else 0,
-                "fps": self.fps, "encoder": self.encoder}
+                "fps": self.fps, "encoder": self.encoder, "output_frames": self.output_frames,
+                "output_fps": round(actual_fps, 1), "output_age_seconds": round(age, 1) if age is not None else None}
 
     def start(self):
         self.thread = threading.Thread(target=self._run, name="woody-gstreamer", daemon=True)
@@ -85,13 +92,14 @@ class GstEngine:
             audio_tail = 'appsink name=audio_probe emit-signals=true max-buffers=1 drop=true sync=false'
         else:
             encoders = {
-                "x264": "x264enc tune=zerolatency speed-preset=veryfast bitrate=6000 key-int-max=50 bframes=0",
+                "x264": "x264enc tune=zerolatency speed-preset=superfast threads=2 bitrate=6000 key-int-max=50 bframes=0",
                 "vaapi": "vah264enc bitrate=6000 key-int-max=50",
                 "nvenc": "nvh264enc bitrate=6000 gop-size=50 bframes=0",
             }
             if self.encoder not in encoders:
                 raise RuntimeError("Unsupported video encoder")
-            tail = f'videoconvert ! video/x-raw,format=NV12 ! {encoders[self.encoder]} ! h264parse ! queue ! mux. flvmux name=mux streamable=true enforce-increasing-timestamps=false ! rtmpsink name=publish sync=false'
+            pixel_format = 'I420' if self.encoder == 'x264' else 'NV12'
+            tail = f'videoconvert ! video/x-raw,format={pixel_format} ! {encoders[self.encoder]} ! h264parse name=encoded ! queue ! mux. flvmux name=mux streamable=true enforce-increasing-timestamps=false ! rtmpsink name=publish sync=false'
             audio_tail = 'audiorate ! audioconvert ! avenc_aac bitrate=128000 ! aacparse ! queue ! mux.'
         pipeline = ['compositor name=comp background=black max-threads=1 force-live=true latency=40000000 ignore-inactive-pads=true ! video/x-raw,width=1920,height=1080,framerate=25/1 ! ' + tail]
         for i in range(6):
@@ -105,6 +113,8 @@ class GstEngine:
                 self.output.get_by_name("audio_probe").connect("new-sample", self._probe_audio)
             else:
                 self.output.get_by_name("publish").set_property("location", self.output_uri)
+                self.output.get_by_name("encoded").get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._encoded)
+            self.output_times.clear()
             self.slots = [self.output.get_by_name(f"slot{i}") for i in range(6)]
             self.labels = [self.output.get_by_name(f"label{i}") for i in range(6)]
             self.pads = [self.output.get_by_name("comp").get_static_pad(f"sink_{i}") for i in range(6)]
@@ -128,7 +138,18 @@ class GstEngine:
     def _probe(self, sink):
         sample = sink.emit("pull-sample")
         self.last_sample = sample
+        self._record_output()
         return self.Gst.FlowReturn.OK
+
+    def _record_output(self):
+        self.output_frames += 1
+        self.output_times.append(time.monotonic())
+
+    def _encoded(self, pad, info):
+        # Count completed H.264 frames, rather than appsrc submissions. Core
+        # remains the authority for whether those frames reached its receiver.
+        self._record_output()
+        return self.Gst.PadProbeReturn.OK
 
     def _probe_audio(self, sink):
         sample = sink.emit("pull-sample")
@@ -150,7 +171,9 @@ class GstEngine:
         camera = {"pipeline": None, "uri": uri, "frame": None, "last": 0, "since": 0, "started": time.monotonic(),
                   "audio": bytearray(), "audio_last": 0, "lock": threading.RLock(), "retry": 0, "error": False, "reason": ""}
         self.cameras[cid] = camera
-        video = 'queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! videoconvert ! videoscale add-borders=true ! videorate ! video/x-raw,format=I420,width=1280,height=720,framerate=25/1,pixel-aspect-ratio=1/1,interlace-mode=progressive ! appsink name=frames emit-signals=true max-buffers=1 drop=true sync=true async=false'
+        # The output clock already repeats the latest image. Duplicating a
+        # 5/15fps input to 25fps here wastes scaling/copying work per camera.
+        video = 'queue max-size-buffers=2 max-size-bytes=0 max-size-time=0 leaky=downstream ! videorate drop-only=true max-rate=25 ! videoconvert ! videoscale add-borders=true ! video/x-raw,format=I420,width=1280,height=720,pixel-aspect-ratio=1/1,interlace-mode=progressive ! appsink name=frames emit-signals=true max-buffers=1 drop=true sync=true async=false'
         audio = 'queue max-size-buffers=5 max-size-bytes=0 max-size-time=0 leaky=downstream ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000,layout=interleaved ! appsink name=sound emit-signals=true max-buffers=5 drop=true sync=true async=false'
         try:
             if uri.startswith("test://"):
@@ -163,6 +186,7 @@ class GstEngine:
                 decode = Gst.ElementFactory.make("uridecodebin", None)
                 decode.set_property("uri", uri)
                 decode.connect("source-setup", self._source_setup)
+                decode.connect("deep-element-added", self._decoder_added)
                 vbin = Gst.parse_bin_from_description(video, True)
                 abin = Gst.parse_bin_from_description(audio, True)
                 pipeline.add(decode)
@@ -196,6 +220,12 @@ class GstEngine:
             source.set_property("latency", 200)
         if source.find_property("tcp-timeout"):
             source.set_property("tcp-timeout", 5000000)
+
+    def _decoder_added(self, decode, parent, element):
+        factory = element.get_factory()
+        if factory and 'Decoder/Video' in (factory.get_metadata('klass') or '') and element.find_property('max-threads'):
+            # Auto mode can create a CPU-sized worker pool for every camera.
+            element.set_property('max-threads', 2)
 
     def _frame(self, sink, cid):
         sample = sink.emit("pull-sample")
@@ -295,6 +325,19 @@ class GstEngine:
         buffer.duration = duration
         return buffer
 
+    def _video_buffer(self, data, number, duration, used):
+        key = id(data)
+        used.add(key)
+        if key not in self.video_cache:
+            self.video_cache[key] = (data, self._buffer(data, 0, duration))
+        original = self.video_cache[key][1]
+        # New timestamps on an independent buffer header; immutable pixel memory
+        # can be shared. No camera-pipeline metadata or buffer pool crosses over.
+        buffer = original.copy_region(self.Gst.BufferCopyFlags.MEMORY, 0, original.get_size())
+        buffer.pts = buffer.dts = number * duration
+        buffer.duration = duration
+        return buffer
+
     def _running_time(self):
         # PLAYING/preroll may complete after pipeline construction, particularly
         # while camera decoders are starting. Wall time since construction can
@@ -327,7 +370,8 @@ class GstEngine:
             v = max(16, min(240, round(128 + .439 * r - .368 * g - .071 * b)))
             self.background_bytes = bytes([y]) * (1920 * 1080) + bytes([u]) * (960 * 540) + bytes([v]) * (960 * 540)
             self.background_color = p["border_color"]
-        self.background.emit("push-buffer", self._buffer(self.background_bytes, number, duration))
+        used = set()
+        self.background.emit("push-buffer", self._video_buffer(self.background_bytes, number, duration, used))
         for i, appsrc in enumerate(self.slots):
             cid = p["slots"][i] if i < len(p["slots"]) else None
             camera = self.cameras.get(cid)
@@ -338,7 +382,7 @@ class GstEngine:
                         frame = camera["frame"]
             slate_cid = p["slates"][i] if i < len(p["slates"]) else None
             slate = self.slates.get(slate_cid)
-            buffer = self._buffer(frame if frame else slate if slate else self.black, number, duration)
+            buffer = self._video_buffer(frame if frame else slate if slate else self.black, number, duration, used)
             buffer.pts = buffer.dts = number * duration
             buffer.duration = duration
             appsrc.emit("push-buffer", buffer)
@@ -355,6 +399,7 @@ class GstEngine:
             if self.labels[i].get_property("text") != label:
                 self.labels[i].set_property("text", label)
         self.video_number = number + 1
+        self.video_cache = {key: value for key, value in self.video_cache.items() if key in used}
         self.frames += 1
         self.last_frame = now
         return True

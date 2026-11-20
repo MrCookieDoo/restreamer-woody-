@@ -35,6 +35,13 @@ niet. Bewaar `.env` niet in Git en deel het bestand niet in chat.
 5. Open **Open kanaal en publicaties** en voeg Twitch, YouTube of andere bestaande
    Restreamer-publicaties toe. De RTMP-streamkey blijft in de bestaande UI/Core.
 
+Het livebeeld staat bovenaan bij **Woody Hoofdstream**. De preview wacht totdat
+er een afspeelbare HLS-playlist is en probeert opnieuw na een afspeelfout of
+stilgevallen afspeelklok. Bij **Camera kiezen · momentopnamen** eronder staan
+foto's voor de bediening; deze vernieuwen elke vijf seconden.
+**Encoder: … / 25 fps** toont de gemeten H.264-uitgang naast de ingestelde
+beeldsnelheid. Een groene mixerstatus alleen bewijst geen vloeiende aflevering.
+
 De camera’s blijven ook hun bestaande losse streams verzorgen. Woody opent een
 extra ontvangstverbinding per geselecteerde camera. Controleer de limieten van de
 camera en beschikbare bandbreedte. Wijzig je een bron in Restreamer, kies in Regie bij die camera **Bewerk → Bron vernieuwen** om het gewijzigde bronadres over te nemen. Dit werkt ook bij 13 geregistreerde camera’s en behoudt blokkeringen.
@@ -264,5 +271,13 @@ een stilstaande Core-counter of ontbrekende playlist vraagt onderzoek van de
 RTMP-/HLS-uitvoer. De Studio-counter telt aangeboden frames en bewijst op
 zichzelf geen succesvolle encodering of aflevering.
 
-De bovenste regievakken gebruiken momenteel momentopnamen, geen livevideo.
-Beoordeel vloeiend beeld daarom in de speler **Woody Hoofdstream**.
+De actuele versie toont ook `output_frames`, `output_fps` en
+`output_age_seconds`: deze worden gemeten na de encoder, vóór de RTMP-verzending.
+De losse `frames`-counter telt aanvoer naar de mixer. Vergelijk de uitgang ook
+met de Core-tellers; een goede encoderframerate bewijst geen succesvolle
+ontvangst bij een extern platform.
+
+Beoordeel vloeiend beeld in de bovenste speler **Woody Hoofdstream**. De
+camerakeuze eronder gebruikt momentopnamen. Werk een bestaande installatie met
+`.\update.cmd` bij en herlaad de browser met Ctrl+F5 om de verbeterde preview te
+gebruiken. Camera-instellingen blijven bewaard.

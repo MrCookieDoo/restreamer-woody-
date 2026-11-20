@@ -25,6 +25,7 @@ export default function Player(props) {
 				type={type}
 				options={config}
 				onReady={(player) => {
+					props.onReady?.(player);
 					if (props.logo.image.length !== 0) {
 						var overlay = null;
 

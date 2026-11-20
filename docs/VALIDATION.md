@@ -153,3 +153,54 @@ specifieke oorzaak. `studio-diagnostics.cmd` leest mixer-, Core- en HLS-status e
 framevoortgang zonder een build of wijzigingen aan de draaiende containers.
 Drie gerichte tests van de rapportage slagen. De oorzaak op de Windows-pc en
 herstel van diens hoofdstream zijn nog niet bevestigd.
+
+## Previewherstel en lagere mixerbelasting
+
+Het vervolgrapport van de gebruiker toont drie online camera's, voortgang in
+zowel Studio als Core en een geldige HLS-playlist met HTTP 200. Core meldt circa
+13 fps. Een lokale browserproef reproduceert een afzonderlijk laadprobleem:
+als de eerste playlistaanvraag een 404 krijgt, blijft de oude preview minstens
+21 seconden op afspeeltijd 0 en nul gedecodeerde beelden staan, ook nadat HLS
+beschikbaar is. Met een direct beschikbare playlist speelt dezelfde bundel wel.
+
+De Studio-preview controleert nu eerst of de playlist afspeelbaar is. Bij
+onbeschikbaarheid probeert hij opnieuw; fouten en een afspeelklok die 15 seconden
+stilstaat leiden tot een nieuwe verbinding. Bewust pauzeren blijft mogelijk.
+Het livebeeld staat bovenaan; momentopnamen voor de camerakeuze zijn expliciet
+als foto's aangeduid. De bestaande VideoJS-speler blijft in gebruik.
+
+De software-encoder gebruikt `superfast` met twee threads en direct I420, op
+dezelfde 1080p/25fps/6Mbps-uitgang. Dit ruilt compressie-efficiëntie in voor minder
+CPU-werk. Videodecoders gebruiken maximaal twee threads waar de plugin dat
+ondersteunt. Bronnen behouden hun eigen framerate tot maximaal 25 fps; de
+uitgangsklok herhaalt het laatste beeld. Anders dan de eerdere vaste 25fps-caps
+vraagt dit geen upsampling in de ontvangsttak. Stilstaande achtergronden,
+wachtbeelden en herhaalde frames delen alleen hun onveranderlijke pixelgeheugen;
+ieder uitgangsbuffer heeft onafhankelijke timestamps. De cache is begrensd.
+
+De status bevat nu ook tellers na H.264-encodering, een gemeten encoderframerate
+en de leeftijd van het laatste gecodeerde beeld. Deze tellers bewijzen geen
+ontvangst bij een extern platform; de Core-ontvangst blijft apart zichtbaar.
+
+Een lokale proef met drie synthetische camera's en de echte H.264/AAC/FLV-keten
+meet vóór de wijziging 24,3 gecodeerde fps bij 197% proces-CPU, en erna 25,0 fps
+bij 162% proces-CPU. Dit is een korte proef in de cloudomgeving met twee CPU's
+aan capaciteit en native GStreamer 1.26.2; het is geen capaciteitsgarantie voor
+de Windows-pc of dertien echte camera's.
+
+42 backend/media-tests en 94 UI-tests slagen. De extra regressies controleren
+de echte encoder, gescheiden buffertimestamps, pixelcache, eerste playlist-404,
+ongeldige/lege playlists, afspeelfouten, een stilgevallen afspeelklok, bewust
+pauzeren en afbreken van aanvragen bij vertrek uit Studio.
+
+De productie-UI-build en uitgebreide Chromium-proef slagen ook. Die proef
+gebruikt nu drie echte synthetische GStreamer-bronnen via H.264/AAC, RTMP en
+Core-HLS naar VideoJS. Na vijf seconden gesimuleerde playlist-404 start de
+preview vanzelf; zowel afspeeltijd als het aantal gedecodeerde frames neemt
+toe. Na het verlaten van de noodmodus zijn ook echte camerapixels in het
+browsercanvas gecontroleerd. Daarna zijn wachtbeelden, scènes, navigatie en
+mobiel gecontroleerd. De
+lokale FFmpeg-versiefixture en uitgeschakelde lokale stale-watchdog blijven
+nodig voor host-FFmpeg 7.1.5; productiecode en de gepinde Dockerimages blijven
+daarvan gescheiden. De werking op de Windows-installatie moet na bijwerken nog
+worden bevestigd.

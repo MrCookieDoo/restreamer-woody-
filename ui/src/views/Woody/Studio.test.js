@@ -8,7 +8,7 @@ import Chatbot from './Chatbot';
 import StudioBoundary from './StudioBoundary';
 import StudioLink from '../../misc/StudioLink';
 
-jest.mock('../../misc/Player', () => () => <div>Programmapreview</div>);
+jest.mock('./ProgramPreview', () => () => <div>Programmapreview</div>);
 
 const camera = { channel_id: 'garden-id', name: 'Tuin', alias: 'tuin', state: 'online', audio: true, hidden: false, chat_enabled: true };
 function state() {

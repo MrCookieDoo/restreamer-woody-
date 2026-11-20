@@ -20,7 +20,10 @@ docker run --rm woody-studio:test python -m pytest tests -q -o cache_dir=/tmp/py
 Deze tests gebruiken 13 synthetische videobronnen met geluid, controleren 100
 wissels zonder uitgangsherstart, inspecteren de echte samengestelde pixels na
 verbergen en controleren een vastgelopen bron en herstel van de uitgang zonder alle cameraverbindingen opnieuw te starten. Ze benaderen geen camera’s of
-platformaccounts.
+platformaccounts. `test_engine_encoded.py` gebruikt bovendien de echte
+H.264-/AAC-encoder en FLV-muxer met een tijdelijk bestand als uitgang. Hij
+controleert voortgang na de encoder en een begrensde pixelcache met onafhankelijke
+timestamps. Zo kan een stijgende aanvoercounter niet alleen de test laten slagen.
 
 De bestaande UI en chatbot hebben hun eigen checks:
 
@@ -82,7 +85,9 @@ reactie bij kijkers volgt pas na de resterende encoder- en platformbuffers.
 
 De regressietest gebruikt de echte productiebundel en VideoJS, inclusief
 klikbaarheid buiten de videospeler, knopantwoorden, scènevenster, heen-en-terug
-navigeren en een mobiel scherm. Gebruik een aparte demo-installatie met
+navigeren en een mobiel scherm. De hoofdplaylist geeft eerst vijf seconden een
+404; daarna moet de echte VideoJS-speler zelfstandig starten, beelden decoderen
+en zijn afspeelklok verder laten lopen. Gebruik een aparte demo-installatie met
 `WOODY_ALLOW_TEST_SOURCES=1` en voer eerst `scripts/demo.py` uit. De test weigert
 installaties met echte camera-ID’s. Er worden regie-instellingen gewijzigd, maar
 geen platformpublicaties of chatberichten aangemaakt.

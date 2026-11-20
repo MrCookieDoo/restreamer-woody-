@@ -9,6 +9,7 @@ import base64
 import json
 from pathlib import Path
 import re
+import time
 import urllib.request
 from playwright.sync_api import sync_playwright, expect
 
@@ -42,10 +43,29 @@ with sync_playwright() as playwright:
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.add_init_script('localStorage.setItem("@@restreamer-ui@@token",' + json.dumps(login['refresh_token']) + ');localStorage.setItem("@@restreamer-ui@@updates","false")')
+    unavailable_until = [None]
+    def delayed_playlist(route):
+        if unavailable_until[0] is None:
+            unavailable_until[0] = time.monotonic() + 5
+        if time.monotonic() < unavailable_until[0]:
+            route.fulfill(status=404, body='Test: playlist not ready yet')
+        else:
+            route.continue_()
+    page.route('**/memfs/' + state['program_channel_id'] + '.m3u8', delayed_playlist)
     try:
         page.goto(base + '/ui/#/studio')
         title = page.get_by_role('heading', name='Studio', exact=True)
         expect(title).to_be_visible(timeout=20000)
+        # Opening Studio before HLS exists used to leave VideoJS stuck forever.
+        expect(page.get_by_text('Wacht op de hoofdstream.', exact=False)).to_be_visible(timeout=10000)
+        video = page.get_by_test_id('program-preview').locator('video')
+        expect(video).to_be_visible(timeout=25000)
+        page.wait_for_function("document.querySelector('[data-testid=program-preview] video')?.currentTime > 0", timeout=30000)
+        before = video.evaluate('(v) => ({time:v.currentTime, frames:v.getVideoPlaybackQuality().totalVideoFrames})')
+        page.wait_for_timeout(2000)
+        after = video.evaluate('(v) => ({time:v.currentTime, frames:v.getVideoPlaybackQuality().totalVideoFrames})')
+        assert after['time'] > before['time'] + .5 and after['frames'] > before['frames'], (before, after)
+        page.unroute('**/memfs/' + state['program_channel_id'] + '.m3u8', delayed_playlist)
         # The actual VideoJS player must remain inside its own preview.
         preview = page.get_by_test_id('program-preview').bounding_box()
         player = page.locator('[data-vjs-player]').bounding_box()
@@ -54,6 +74,22 @@ with sync_playwright() as playwright:
         for label in ['Volledig scherm', '1 groot + 5 klein', 'Alles naar wachtbeeld', '1 groot + 5 klein', 'Vastzetten', 'Vrijgeven']:
             page.get_by_role('button', name=label, exact=True).click(timeout=5000)
             expect(title).to_be_visible()
+        # After the HLS buffer catches up with leaving safe mode, decoded video
+        # must contain actual camera pixels, not only a ticking black stream.
+        page.wait_for_function("""() => {
+            const video = document.querySelector('[data-testid=program-preview] video');
+            if (!video || video.readyState < 2) return false;
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 36;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 64, 36);
+            const pixels = context.getImageData(0, 0, 64, 36).data;
+            let bright = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (Math.max(pixels[i], pixels[i+1], pixels[i+2]) > 45) bright++;
+            }
+            return bright > 230;
+        }""", timeout=30000)
         page.get_by_role('button', name='Groot zetten', exact=True).first.click()
         page.get_by_role('button', name='Verbergen + dempen', exact=True).first.click()
         expect(page.get_by_text('Verborgen', exact=True)).to_be_visible()
@@ -138,4 +174,4 @@ with sync_playwright() as playwright:
         raise
     finally:
         browser.close()
-print('Studio browser smoke passed: real player, buttons, modal, old responses, navigation and mobile layout.')
+print('Studio browser smoke passed: delayed HLS recovery, decoded video progress, buttons, modal, old responses, navigation and mobile layout.')

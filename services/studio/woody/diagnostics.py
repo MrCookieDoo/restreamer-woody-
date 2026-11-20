@@ -35,6 +35,9 @@ def snapshot(request):
             'cameras': len(cameras), 'online': sum(c.get('state') == 'online' for c in cameras),
             'with_audio': sum(c.get('audio') is True for c in cameras),
         }
+        for key in ('output_frames', 'output_fps', 'output_age_seconds'):
+            if number(engine.get(key)) is not None:
+                report['studio'][key] = engine[key]
     except Unavailable as error:
         report['studio'] = {'http_status': error.status}
     try:
