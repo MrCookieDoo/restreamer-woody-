@@ -4,10 +4,11 @@ ARG FFMPEG_IMAGE=datarhei/base:ffmpeg6.1.1-alpine3.20
 
 FROM $NODE_IMAGE AS restreamer-ui
 WORKDIR /ui
+COPY ui/package.json ui/yarn.lock ./
+ENV PUBLIC_URL=./ GENERATE_SOURCEMAP=false
+RUN yarn install --frozen-lockfile --non-interactive --ignore-engines && yarn cache clean
 COPY ui/ ./
-ENV PUBLIC_URL=./
-RUN yarn install --frozen-lockfile --non-interactive --ignore-engines && \
-    yarn build && yarn cache clean && rm -rf node_modules
+RUN yarn build
 FROM $CORE_IMAGE AS core
 FROM $FFMPEG_IMAGE
 

@@ -45,7 +45,7 @@ class GstEngine:
         self.output_uri, self.test_output, self.allow_test = output_uri, test_output, allow_test
         self.encoder = encoder
         self.width, self.height, self.fps = 1280, 720, 25
-        self.cameras, self.sources = {}, {}
+        self.cameras, self.sources, self.slates = {}, {}, {}
         self.output = None
         self.loop = GLib.MainLoop()
         self.frames = self.audio_frames = self.restarts = 0
@@ -252,6 +252,7 @@ class GstEngine:
         if self.stopping:
             return False
         sources = self.controller.sources()
+        self.slates = self.controller.store.slate_frames()
         for cid in list(self.cameras):
             camera = self.cameras[cid]
             if cid not in sources or sources[cid] != camera["uri"]:
@@ -335,7 +336,9 @@ class GstEngine:
                 with camera["lock"]:
                     if now - camera["last"] <= 2:
                         frame = camera["frame"]
-            buffer = self._buffer(frame if frame else self.black, number, duration)
+            slate_cid = p["slates"][i] if i < len(p["slates"]) else None
+            slate = self.slates.get(slate_cid)
+            buffer = self._buffer(frame if frame else slate if slate else self.black, number, duration)
             buffer.pts = buffer.dts = number * duration
             buffer.duration = duration
             appsrc.emit("push-buffer", buffer)
@@ -348,7 +351,7 @@ class GstEngine:
             for name, value in (("xpos", x + border), ("ypos", y + border), ("width", w - 2 * border), ("height", h - 2 * border), ("alpha", 0.0 if full and i > 0 else 1.0)):
                 if pad.get_property(name) != value:
                     pad.set_property(name, value)
-            label = html.escape(p["names"].get(cid, "Wachtbeeld") if frame else "Wachtbeeld")
+            label = html.escape(p["names"].get(cid, "Wachtbeeld") if frame else "" if slate else "Wachtbeeld")
             if self.labels[i].get_property("text") != label:
                 self.labels[i].set_property("text", label)
         self.video_number = number + 1

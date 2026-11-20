@@ -22,7 +22,28 @@ class Store:
             self.db.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY, data TEXT NOT NULL)")
             self.db.execute("CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, at REAL, actor TEXT, action TEXT, outcome TEXT)")
             self.db.execute("CREATE TABLE IF NOT EXISTS seen (platform TEXT, message_id TEXT, at REAL, PRIMARY KEY(platform,message_id))")
+            self.db.execute("CREATE TABLE IF NOT EXISTS slates (camera TEXT PRIMARY KEY, version TEXT NOT NULL, image BLOB NOT NULL, frame BLOB NOT NULL)")
             self.db.execute("PRAGMA user_version=1")
+        self._slates = {row[0]: {"version": row[1], "image": row[2], "frame": row[3]} for row in self.db.execute("SELECT camera, version, image, frame FROM slates")}
+
+    def slate(self, cid):
+        with self.lock:
+            value = self._slates.get(cid)
+            return dict(value) if value else None
+
+    def slate_frames(self):
+        with self.lock:
+            return {cid: value["frame"] for cid, value in self._slates.items()}
+
+    def put_slate(self, cid, slate):
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO slates VALUES (?,?,?,?) ON CONFLICT(camera) DO UPDATE SET version=excluded.version,image=excluded.image,frame=excluded.frame", (cid, slate["version"], slate["image"], slate["frame"]))
+            self._slates[cid] = dict(slate)
+
+    def delete_slate(self, cid):
+        with self.lock, self.db:
+            self.db.execute("DELETE FROM slates WHERE camera=?", (cid,))
+            self._slates.pop(cid, None)
 
     def encrypt(self, text: str) -> str:
         return self.cipher.encrypt(text.encode()).decode()

@@ -112,3 +112,46 @@ test('an offline camera shows a readable reception reason while its emergency co
 	expect(screen.getByRole('button', { name: 'Groot zetten' })).toBeDisabled();
 	expect(screen.getByRole('button', { name: 'Verbergen + dempen' })).toBeEnabled();
 });
+
+test('a hidden camera can show its custom slate without requesting the camera snapshot', () => {
+	const rs = restreamer();
+	wrap(
+		<CameraBoard
+			slots={['garden-id']}
+			cameras={{ 'garden-id': { ...camera, hidden: true } }}
+			slates={{ 'garden-id': { image_data: 'data:image/jpeg;base64,cHJldmlldw==' } }}
+			restreamer={rs}
+		/>,
+	);
+	expect(screen.getByRole('img', { name: 'Eigen wachtbeeld voor Tuin' })).toHaveAttribute('src', 'data:image/jpeg;base64,cHJldmlldw==');
+	expect(rs.GetChannelAddress).not.toHaveBeenCalled();
+	expect(screen.getByRole('button', { name: 'Wachtbeeld kader 1' })).toBeDisabled();
+});
+
+test('camera editor uploads an image and can manually show its silent slate', async () => {
+	let current = state();
+	const rs = restreamer(current);
+	rs.StudioRequest.mockImplementation(async (method, path, body) => {
+		if (path === '/channels') return [];
+		if (path.endsWith('/slate') && method === 'GET') return { version: 'custom-v1', image_data: 'data:image/jpeg;base64,cHJldmlldw==' };
+		if (path.endsWith('/slate') && method === 'PUT')
+			current = { ...current, revision: 1, cameras: { 'garden-id': { ...camera, slate_version: 'custom-v1' } } };
+		if (path.endsWith('/hidden')) current = { ...current, revision: 2, cameras: { 'garden-id': { ...current.cameras['garden-id'], hidden: body.hidden } } };
+		return current;
+	});
+	wrap(<Studio restreamer={rs} />);
+	fireEvent.click(await screen.findByRole('button', { name: 'Bewerk', exact: true }));
+	const file = new File(['test-image'], 'wachtbeeld.png', { type: 'image/png' });
+	fireEvent.change(screen.getByLabelText('Wachtbeeldbestand'), { target: { files: [file] } });
+	await waitFor(() =>
+		expect(rs.StudioRequest).toHaveBeenCalledWith(
+			'PUT',
+			'/cameras/garden-id/slate',
+			expect.objectContaining({ image_data: expect.stringMatching(/^data:image\/png;base64,/) }),
+		),
+	);
+	await screen.findByRole('img', { name: 'Eigen wachtbeeld', exact: true });
+	fireEvent.click(screen.getByRole('button', { name: 'Wachtbeeld tonen', exact: true }));
+	await waitFor(() => expect(rs.StudioRequest).toHaveBeenCalledWith('PUT', '/cameras/garden-id/hidden', { hidden: true }));
+	await screen.findByRole('button', { name: 'Camera weer tonen', exact: true });
+});

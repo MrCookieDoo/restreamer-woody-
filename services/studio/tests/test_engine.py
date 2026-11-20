@@ -90,3 +90,41 @@ def test_output_error_recovers_without_restarting_camera_pipelines(engine):
     eventually(lambda: engine.restarts == 1 and engine.output_state == "running", timeout=8)
     eventually(lambda: engine.frames > before + 10)
     assert all(engine.cameras[cid]["pipeline"] == pipeline for cid, pipeline in original.items())
+
+
+def test_camera_custom_slate_replaces_image_and_audio_without_stopping_source(engine, control):
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    from woody.slates import normalize_slate
+    image = BytesIO()
+    Image.new('RGB', (640, 360), 'white').save(image, format='PNG')
+    cid = list(control.data['cameras'])[4]
+    slate = normalize_slate('data:image/png;base64,' + base64.b64encode(image.getvalue()).decode())
+    control.set_slate(cid, slate)
+    control.switch(cid)
+    eventually(lambda: 30 < center_luma(engine) < 200)
+    eventually(lambda: any(getattr(engine, 'last_audio', b'')))
+    original = engine.cameras[cid]['pipeline']
+    control.hide(cid, True)
+    eventually(lambda: center_luma(engine) == 235, timeout=2)
+    eventually(lambda: getattr(engine, 'last_audio', None) == engine.silence, timeout=1)
+    assert engine.cameras[cid]['pipeline'] == original and engine.restarts == 0
+    control.set_program({'safe': True})
+    eventually(lambda: center_luma(engine) == 16, timeout=1)
+    control.set_program({'safe': False})
+    eventually(lambda: center_luma(engine) == 235, timeout=1)
+    control.set_slate(cid, None)
+    eventually(lambda: center_luma(engine) == 16, timeout=2)
+
+    # A source failure uses the same custom slate and silence automatically.
+    control.set_slate(cid, slate)
+    control.hide(cid, False)
+    eventually(lambda: 30 < center_luma(engine) < 200)
+    def stall_custom_camera():
+        engine.cameras[cid]['pipeline'].set_state(engine.Gst.State.PAUSED)
+        return False
+    engine.GLib.idle_add(stall_custom_camera)
+    eventually(lambda: center_luma(engine) == 235, timeout=4)
+    eventually(lambda: getattr(engine, 'last_audio', None) == engine.silence, timeout=1)
+    assert engine.restarts == 0

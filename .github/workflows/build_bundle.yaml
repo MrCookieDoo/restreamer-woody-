@@ -48,8 +48,15 @@ jobs:
           cache-dependency-path: services/chatbot/package-lock.json
       - run: npm ci && npm run typecheck && npm test
         working-directory: services/chatbot
+  updater:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Windows updater orchestration
+        shell: powershell
+        run: ./tests/update.Tests.ps1
   bundle:
-    needs: [ui, studio, chatbot]
+    needs: [ui, studio, chatbot, updater]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

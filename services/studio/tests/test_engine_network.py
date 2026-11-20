@@ -86,7 +86,7 @@ def test_network_failures_have_safe_diagnostics_without_source_credentials(tmp_p
         eventually(lambda: controller.health.get(cid, {}).get('reason') == 'connection-error')
         public = str(controller.state())
         assert 'private-user' not in public and 'private-password' not in public and 'rtsp://' not in public
-        assert engine.status()['state'] == 'running'
+        eventually(lambda: engine.status()['state'] == 'running')
     finally:
         engine.stop()
         store.close()

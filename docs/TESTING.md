@@ -97,3 +97,16 @@ Gebruik indien nodig `--env-file /pad/naar/de/test/.env` en
 `--chromium /usr/bin/chromium`. Schermafbeeldingen staan in
 `artifacts/studio-browser/`. De browser moet dezelfde ondersteunde Core/FFmpeg-
 combinatie krijgen als de productie-installatie.
+
+## Windows-updater
+
+```powershell
+powershell -NoProfile -File tests/update.Tests.ps1
+```
+
+Deze zeven controles voeren de PowerShell-logica met nagebootste Git- en
+Dockeropdrachten uit: projectherkenning, volgorde bouwen/starten, behoud van `.env`,
+weigeren van lokale bronwijzigingen, afbreken bij bouwfouten, expliciete
+projectselectie, actieve chatbot en Windows/WSL-paden. Ze raken geen draaiende
+containers. De CI-job gebruikt Windows PowerShell; lokaal is de scriptlogica ook
+onder PowerShell 7 gecontroleerd.

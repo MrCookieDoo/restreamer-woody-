@@ -1,5 +1,6 @@
 """Authenticated same-origin Studio API. Core remains the authentication issuer."""
 import asyncio
+import base64
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import hmac
@@ -11,7 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import jwt
 from .controller import Controller, Rejected
 from .core import Core, PROGRAM_ID
-from .models import CameraSettings, CameraPatch, ChatCommand, ChatSettings, Hidden, ProgramPatch, Rotation, Scene, Switch, BotStatus
+from .models import SlateUpload, CameraSettings, CameraPatch, ChatCommand, ChatSettings, Hidden, ProgramPatch, Rotation, Scene, Switch, BotStatus
 from .storage import Store
 
 
@@ -136,6 +137,29 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
     def add_camera(body: CameraSettings):
         name, uri = core.source(body.channel_id)
         controller.add_camera(body.model_dump(), name, uri)
+        return studio_state()
+
+    @app.get(prefix + "/cameras/{cid}/slate", dependencies=[Depends(admin)])
+    def camera_slate(cid: str):
+        with controller.lock:
+            controller.camera(cid)
+            slate = store.slate(cid)
+        if not slate:
+            raise HTTPException(404, "Geen eigen wachtbeeld ingesteld")
+        return {"version": slate["version"], "image_data": "data:image/jpeg;base64," + base64.b64encode(slate["image"]).decode()}
+
+    @app.put(prefix + "/cameras/{cid}/slate", dependencies=[Depends(admin)])
+    def upload_camera_slate(cid: str, body: SlateUpload):
+        from .slates import normalize_slate
+        with controller.lock:
+            controller.camera(cid)
+        slate = normalize_slate(body.image_data)
+        controller.set_slate(cid, slate)
+        return studio_state()
+
+    @app.delete(prefix + "/cameras/{cid}/slate", dependencies=[Depends(admin)])
+    def delete_camera_slate(cid: str):
+        controller.set_slate(cid, None)
         return studio_state()
 
     @app.patch(prefix + "/cameras/{cid}", dependencies=[Depends(admin)])

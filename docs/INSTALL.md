@@ -119,3 +119,57 @@ wel herverbinden vereisen; deze versie bevat geen tweede overnameserver.
   of bij het platform gebufferde beelden.
 - Zie [TESTING.md](TESTING.md) voor lokale tests en de duurtesthelper en
   [CHATBOT.md](CHATBOT.md) voor accountkoppeling.
+
+## Updates op Windows
+
+Na de eenmalige installatie hoef je geen setupscript meer uit te voeren. Open
+PowerShell in je bestaande Woody-projectmap en voer uit:
+
+```powershell
+.\update.cmd
+```
+
+Bij de eerste keer moet je dit nieuwe bestand nog ophalen:
+
+```powershell
+git pull --ff-only origin feat/woody-studio
+.\update.cmd
+```
+
+De updater herkent het bestaande Docker-project aan de Studio-container en de
+projectmap. Hij bewaart `.env`, poort en volumes, haalt de huidige branch met
+`--ff-only` op, bouwt eerst alle benodigde images en werkt pas daarna het
+bestaande project bij. Bij een mislukte build blijven de oude containers draaien.
+Er wordt geen `down` uitgevoerd. Alleen een reeds draaiende chatbot wordt als
+onderdeel van het actieve profiel bijgewerkt.
+
+Meerdere projecten uit dezelfde map? Kies expliciet bijvoorbeeld
+`.\update.cmd -Project woody-test`. De updater weigert een project dat niet bij
+deze Woody-map hoort. Lokale wijzigingen in bijgehouden bronbestanden moeten eerst
+worden bewaard; een aangepaste `.env` is toegestaan.
+
+Woody-containers kunnen tijdens het vervangen kort herstarten. Een aparte
+standaard-Restreamer valt buiten deze update. De eerste build met de nieuwe cache
+kost nog tijd; latere wijzigingen hergebruiken de UI-, Python- en botpakketten
+zolang hun dependencybestanden gelijk blijven. De images worden momenteel lokaal
+gebouwd; dit is geen download van vooraf gepubliceerde images.
+
+## Eigen wachtbeeld per camera
+
+Open **Studio → Camera’s → Bewerk** bij de gewenste camera en kies
+**Afbeelding uploaden**. PNG, JPG en stilstaande WebP worden ondersteund,
+maximaal 4 MB en 16 megapixels. Het beeld wordt binnen 16:9 passend gemaakt;
+extra ruimte wordt zwart. De afbeelding blijft in het Studio-volume bewaard.
+
+Met **Wachtbeeld tonen** wordt die camera in de hoofdstream vervangen door haar
+eigen afbeelding en gedempt. **Camera weer tonen** geeft het livebeeld vrij
+zodra de bron online is. De bestaande noodknop **Verbergen + dempen** gebruikt
+hetzelfde eigen beeld. De camera-ontvangst en losse Restreamer-uitzending worden
+hierbij niet gestopt.
+
+Bij bronuitval verschijnt de afbeelding automatisch, zolang de camera aan het
+kader is toegewezen. Zet de indeling met **Vastzetten** vast als je wilt voorkomen
+dat de automatische ronde het kader later aan een andere camera toewijst.
+**Alles naar wachtbeeld** heeft voorrang en blijft het algemene wachtbeeld tonen.
+Met **Afbeelding verwijderen** wordt voor deze camera weer het standaard zwarte
+wachtbeeld gebruikt; dit heft een bestaande camerablokkering niet op.

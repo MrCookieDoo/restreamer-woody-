@@ -16,6 +16,10 @@ class CameraSettings(Model):
     chat_enabled: bool = False
 
 
+class SlateUpload(Model):
+    image_data: str = Field(min_length=1, max_length=5_600_000)
+
+
 class CameraPatch(Model):
     alias: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]{0,31}$")
     chat_enabled: bool | None = None

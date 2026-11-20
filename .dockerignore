@@ -7,3 +7,6 @@
 ui/build
 .local
 artifacts
+config/
+data/
+.venv-gst/

@@ -24,6 +24,7 @@ import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import Player from '../../misc/Player';
 import useStudio from './useStudio';
+import useSlates from './useSlates';
 
 // The upstream theme styles MuiDialog like an inline paper; restore the modal root locally.
 const dialogLayout = { p: 0, width: 'auto', maxWidth: 'none', maxHeight: 'none', overflow: 'visible', bgcolor: 'transparent' };
@@ -42,7 +43,7 @@ const sourceReasons = {
 
 const areas = ['2 / 2 / 4 / 4', '2 / 1 / 3 / 2', '3 / 1 / 4 / 2', '4 / 1 / 5 / 2', '4 / 2 / 5 / 3', '4 / 3 / 5 / 4'];
 
-export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwitch, disabled, color = '#85532d', border = 4 }) {
+export function CameraBoard({ slots = [], cameras, slates = {}, restreamer, safe, full, onSwitch, disabled, color = '#85532d', border = 4 }) {
 	return (
 		<Box
 			sx={{
@@ -61,6 +62,7 @@ export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwi
 				const cid = safe ? null : slots[i];
 				const camera = cameras[cid];
 				const visible = camera && !camera.hidden && camera.state === 'online';
+				const slate = !safe && !visible && slates[cid]?.image_data;
 				return (
 					<Box
 						component="button"
@@ -95,7 +97,15 @@ export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwi
 								sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
 							/>
 						)}
-						{!visible && (
+						{slate && (
+							<Box
+								component="img"
+								alt={`Eigen wachtbeeld voor ${camera.name}`}
+								src={slate}
+								sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+							/>
+						)}
+						{!visible && !slate && (
 							<Stack sx={{ height: '100%' }} justifyContent="center" alignItems="center">
 								<VideocamIcon />
 								<Typography variant="caption">Wachtbeeld</Typography>
@@ -125,6 +135,7 @@ export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwi
 
 export default function Studio({ restreamer }) {
 	const { state, error, busy, request } = useStudio(restreamer);
+	const slates = useSlates(restreamer, state?.cameras);
 	const [channels, setChannels] = React.useState([]);
 	const [channel, setChannel] = React.useState('');
 	const [alias, setAlias] = React.useState('');
@@ -160,6 +171,25 @@ export default function Studio({ restreamer }) {
 		} catch (e) {
 			setActionError(e.message || 'Het hoofdkanaal kon niet worden ingesteld.');
 		}
+	};
+	const uploadSlate = (event) => {
+		const file = event.target.files?.[0];
+		const cid = editing?.cid;
+		event.target.value = '';
+		if (!file || !cid) return;
+		setActionError('');
+		if (file.size > 4 * 1024 * 1024) {
+			setActionError('De afbeelding mag maximaal 4 MB zijn.');
+			return;
+		}
+		const reader = new FileReader();
+		reader.onerror = () => setActionError('De afbeelding kon niet worden gelezen.');
+		reader.onload = async () => {
+			if (await request('PUT', `/cameras/${cid}/slate`, { image_data: reader.result })) {
+				setNotice('Eigen wachtbeeld opgeslagen. Toon het met Wachtbeeld tonen of Verbergen + dempen.');
+			}
+		};
+		reader.readAsDataURL(file);
 	};
 	const add = async () => {
 		if (await request('POST', '/cameras', { channel_id: channel, alias, chat_enabled: false })) {
@@ -231,6 +261,7 @@ export default function Studio({ restreamer }) {
 							<CameraBoard
 								slots={program.slots}
 								cameras={cameras}
+								slates={slates}
 								restreamer={restreamer}
 								safe={program.safe}
 								full={program.layout === 'full'}
@@ -596,6 +627,46 @@ export default function Studio({ restreamer }) {
 						value={editing?.alias || ''}
 						onChange={(e) => setEditing({ ...editing, alias: e.target.value })}
 					/>
+					<Stack spacing={2} sx={{ mt: 3 }}>
+						<Typography variant="h6">Eigen wachtbeeld</Typography>
+						<Typography variant="body2">
+							PNG, JPG of WebP, maximaal 4 MB. Het beeld past binnen 16:9; het geluid van deze camera gaat uit wanneer het wachtbeeld wordt
+							getoond.
+						</Typography>
+						{(actionError || error) && <Alert severity="error">{actionError || error}</Alert>}
+						{editing && slates[editing.cid] && (
+							<Box
+								component="img"
+								alt="Eigen wachtbeeld"
+								src={slates[editing.cid].image_data}
+								sx={{ width: '100%', maxHeight: 200, objectFit: 'contain', bgcolor: 'black' }}
+							/>
+						)}
+						<Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
+							<Button component="label" variant="outlined" disabled={busy}>
+								Afbeelding uploaden
+								<input type="file" hidden aria-label="Wachtbeeldbestand" accept="image/png,image/jpeg,image/webp" onChange={uploadSlate} />
+							</Button>
+							<Button
+								variant="outlined"
+								disabled={busy || !cameras[editing?.cid]?.slate_version}
+								onClick={() => request('DELETE', `/cameras/${editing.cid}/slate`)}
+							>
+								Afbeelding verwijderen
+							</Button>
+						</Stack>
+						<Button
+							variant="outlined"
+							disabled={!cameras[editing?.cid]?.slate_version}
+							onClick={() => request('PUT', `/cameras/${editing.cid}/hidden`, { hidden: !cameras[editing.cid].hidden })}
+						>
+							{cameras[editing?.cid]?.hidden ? 'Camera weer tonen' : 'Wachtbeeld tonen'}
+						</Button>
+						<Typography variant="caption">
+							Het eigen beeld verschijnt ook bij bronuitval, zolang deze camera aan het kader is toegewezen. Gebruik Vastzetten om automatische
+							wissels te pauzeren. Alles naar wachtbeeld gebruikt het algemene wachtbeeld.
+						</Typography>
+					</Stack>
 				</DialogContent>
 				<DialogActions>
 					<Button

@@ -5,6 +5,7 @@ Requires `pip install playwright` and `playwright install chromium`.
 Never run against camera installations: only synthetic demo camera IDs are accepted.
 """
 import argparse
+import base64
 import json
 from pathlib import Path
 import re
@@ -62,6 +63,25 @@ with sync_playwright() as playwright:
         expect(camera_dialog).to_be_visible()
         camera_dialog.get_by_role('button', name='Opslaan', exact=True).click()
         expect(camera_dialog).not_to_be_visible()
+        # Exercise the actual upload endpoint, cached preview and manual mask.
+        page.get_by_role('button', name='Bewerk', exact=True).first.click()
+        camera_dialog.get_by_label('Wachtbeeldbestand').set_input_files({
+            'name': 'camera-slate.png', 'mimeType': 'image/png',
+            'buffer': base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC'),
+        })
+        expect(camera_dialog.get_by_role('img', name='Eigen wachtbeeld', exact=True)).to_be_visible()
+        camera_dialog.get_by_role('button', name='Wachtbeeld tonen', exact=True).click()
+        expect(camera_dialog.get_by_role('button', name='Camera weer tonen', exact=True)).to_be_visible()
+        page.reload()
+        expect(title).to_be_visible(timeout=20000)
+        expect(page.get_by_role('img', name=re.compile('^Eigen wachtbeeld voor '))).to_be_visible()
+        page.get_by_role('button', name='Bewerk', exact=True).first.click()
+        camera_dialog.get_by_role('button', name='Camera weer tonen', exact=True).click()
+        camera_dialog.get_by_role('button', name='Afbeelding verwijderen', exact=True).click()
+        expect(camera_dialog.get_by_role('img', name='Eigen wachtbeeld', exact=True)).not_to_be_visible()
+        camera_dialog.get_by_role('button', name='Opslaan', exact=True).click()
+        expect(camera_dialog).not_to_be_visible()
+
         page.get_by_role('button', name='Scène samenstellen', exact=True).click()
         dialog = page.get_by_role('dialog', name='Scène samenstellen')
         expect(dialog).to_be_visible()

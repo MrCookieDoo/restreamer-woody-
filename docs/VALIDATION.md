@@ -90,3 +90,34 @@ GStreamer 1.26.2; de image blijft Ubuntu 24.04/GStreamer 1.24 en bevat de kleine
 RTSP-serverbibliotheek voor dezelfde CI-regressies. UI: 86 tests en productiebuild
 geslaagd. De echte cameramodellen op de doelinstallatie zijn nog niet beschikbaar
 in deze workspace.
+
+## Eigen camerawachtbeelden
+
+Per camera kan een beheerder een eigen stilstaande PNG/JPG/WebP uploaden. Het
+origineel wordt gecontroleerd en zonder metadata naar een passend 16:9-beeld en
+I420-frame omgezet. Upload en preview vereisen dezelfde Core-beheerderslogin;
+bottokens krijgen geen toegang. Afbeeldingen staan in dezelfde SQLite-back-up
+als de regie en worden bij bronvernieuwing behouden.
+
+Handmatig verbergen gebruikt het eigen beeld en stilte; bronuitval doet hetzelfde
+zolang het kader toegewezen blijft. Het algemene wachtbeeld heeft voorrang. De
+camera blijft ontvangen en losse publicaties worden niet aangepast. De browser-
+regressie controleert uploaden, tonen, herladen en verwijderen. Native GStreamer-
+tests controleren echte witte pixels en stille PCM, behoud van de bronpipeline,
+algemene noodmodus en terugvallen op zwart na verwijderen.
+
+37 backend/media-tests en 88 UI-tests zijn geslaagd; de productie-UI-build en
+Chromium-uploadproef slagen. De uitgebreide test voor het eigen beeld bij een
+vastgelopen bron is eveneens uitgevoerd. Dit blijft een lokale proef met
+synthetische beelden en RTSP-testbronnen, zonder toegang tot de echte camera’s
+van de doelinstallatie.
+
+## Korter bijwerken
+
+`update.cmd` start de Windows-updater vanuit de projectmap. Zeven PowerShell-
+controles slagen, met projectherkenning en weigeren van onveilige of mislukte
+updates; Git en Docker zijn daarbij nagebootst. De Dockerfiles plaatsen
+UI-/Python-/botafhankelijkheden vóór de broncode, zodat codewijzigingen de
+installatielagen kunnen hergebruiken. De eerste build na deze herindeling moet de
+nieuwe cache nog vullen. Volledige Docker-bundelvalidatie blijft een CI/doelserver-
+check zoals hierboven beschreven.

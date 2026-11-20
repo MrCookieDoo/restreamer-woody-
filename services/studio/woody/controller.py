@@ -42,6 +42,8 @@ class Controller:
             data = copy.deepcopy(self.data)
             for cid, camera in data["cameras"].items():
                 camera.pop("source", None)
+                slate = self.store.slate(cid)
+                camera["slate_version"] = slate["version"] if slate else None
                 camera.update(self.health.get(cid, {"state": "connecting", "audio": False}))
             data["program"]["audio_camera"] = self.audio_camera()
             data["program"]["next_switch_in"] = max(0, round(self.next_switch - self.clock()))
@@ -85,12 +87,22 @@ class Controller:
     def remove_camera(self, cid):
         with self.lock:
             self.camera(cid)
+            self.store.delete_slate(cid)
             del self.data["cameras"][cid]
             self.health.pop(cid, None)
             self.data["rotation"]["order"] = [c for c in self.data["rotation"]["order"] if c != cid]
             self.data["program"]["slots"] = [None if c == cid else c for c in self.data["program"]["slots"]]
             for scene in self.data["scenes"].values():
                 scene["cameras"] = [None if c == cid else c for c in scene["cameras"]]
+            self.changed()
+
+    def set_slate(self, cid, slate):
+        with self.lock:
+            self.camera(cid)
+            if slate is None:
+                self.store.delete_slate(cid)
+            else:
+                self.store.put_slate(cid, slate)
             self.changed()
 
     def hide(self, cid, hidden):
@@ -121,7 +133,9 @@ class Controller:
     def frame_state(self):
         with self.lock:
             p = copy.deepcopy(self.data["program"])
-            p["slots"] = [cid if not p["safe"] and self.available(cid) else None for cid in p["slots"]]
+            assigned = p["slots"]
+            p["slots"] = [cid if not p["safe"] and self.available(cid) else None for cid in assigned]
+            p["slates"] = [cid if not p["safe"] and cid in self.data["cameras"] and not self.available(cid) else None for cid in assigned]
             p["names"] = {cid: c["name"] for cid, c in self.data["cameras"].items()}
             return p
 
