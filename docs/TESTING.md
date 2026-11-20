@@ -110,3 +110,16 @@ weigeren van lokale bronwijzigingen, afbreken bij bouwfouten, expliciete
 projectselectie, actieve chatbot en Windows/WSL-paden. Ze raken geen draaiende
 containers. De CI-job gebruikt Windows PowerShell; lokaal is de scriptlogica ook
 onder PowerShell 7 gecontroleerd.
+
+## Bestaande NVR-installatie uitlezen
+
+```powershell
+powershell -NoProfile -File tests/nvr-sources.Tests.ps1
+```
+
+De zeven controles toetsen Core-databasemetadata, kanaal 1 en 16, HLS uit geheugen
+of op schijf, het weglaten van bronwachtwoorden, veilig afwijzen van ongeldige data
+en uitsluitend de leesopdracht `docker exec ... cat`. Docker is hierbij nagebootst.
+`tests/test_engine_hls.py` in de Studio-service test een echte HTTP HLS-stream met
+15 fps en AAC-audio, twee gelijktijdige lezers en behoud van het producerproces.
+De Studio-image bevat daarvoor ook de FFmpeg-testgenerator.

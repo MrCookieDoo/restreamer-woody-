@@ -173,3 +173,59 @@ dat de automatische ronde het kader later aan een andere camera toewijst.
 **Alles naar wachtbeeld** heeft voorrang en blijft het algemene wachtbeeld tonen.
 Met **Afbeelding verwijderen** wordt voor deze camera weer het standaard zwarte
 wachtbeeld gebruikt; dit heft een bestaande camerablokkering niet op.
+
+## NVR-containers die de netwerkruimte van de oude Woody delen
+
+Bij `woody-rtmp-channel0` met netwerkmodus `container:<Woody-id>` zit
+`http://127.0.0.1:18550/channel0.ts` binnen de oude Woody-netwerkruimte. Hetzelfde
+geldt voor poorten 18551-18565. Die poorten zijn niet op Windows gepubliceerd.
+In de nieuwe Core- en Studio-containers betekent `127.0.0.1` hun eigen container.
+
+Gebruik voor de parallelle proef de **HLS-uitgangen van de bestaande Woody**.
+Laat de oude NVR-bronnen, containers en publicaties daarbij staan. De oude Core
+blijft de NVR-bron lezen; de nieuwe installatie leest zijn meervoudig bruikbare
+HLS-uitgang op de al gepubliceerde poort 8080.
+
+Vanuit PowerShell in de nieuwe projectmap:
+
+```powershell
+.\nvr-sources.cmd
+```
+
+Deze uitleeshulp leest via Docker `cat /core/config/db.json` binnen container
+`Woody`. Hij drukt geen ruwe database of bronwachtwoorden af. Per herkend NVR-
+kanaal verschijnt een HLS-adres, bijvoorbeeld:
+
+```text
+http://host.docker.internal:8080/memfs/<bestaand-kanaal-id>.m3u8
+```
+
+Bij HLS op schijf ontbreekt `/memfs/`; de hulp kiest dit uit de bestaande
+metadata. `host.docker.internal` is het hostadres voor Docker Desktop. Het is een
+bronadres voor de containers; de browser blijft voor de nieuwe interface
+`http://localhost:8082/ui/` gebruiken als poort 8082 in `.env` staat.
+
+1. Neem het adres uit de lijst over als netwerkbron in het betreffende kanaal van
+   de **nieuwe** Restreamer. Voor een eerste proef is één kanaal voldoende.
+2. Controleer of dat kanaal in de nieuwe gewone weergave beeld en geluid geeft.
+3. Is het kanaal al in Studio opgenomen? Kies **Bewerk → Bron vernieuwen** om het
+   gewijzigde bronadres over te nemen. Anders voeg je het toe aan de regie.
+
+Een andere containernaam of gepubliceerde oude HTTP-poort kan expliciet:
+
+```powershell
+.\nvr-sources.cmd -Container Woody -BaseUrl http://host.docker.internal:8080
+```
+
+Een aangepaste Core-datadirectory kan met `-DatabasePath /pad/naar/db.json`.
+Als de database niet kan worden gelezen, kun je ook de bestaande HLS-knop in de
+oude Restreamer gebruiken: behoud kanaal-id en pad en gebruik voor deze
+Docker Desktop-opstelling `host.docker.internal:8080` als host en poort.
+Op een andere Linux-server gebruik je een bereikbaar serveradres; Docker Desktop-
+DNS is daar niet automatisch aanwezig.
+
+HLS brengt buffervertraging mee. De noodknop maskeert de nieuwe hoofdstream,
+maar wist geen reeds verzonden of gebufferde beelden. De hulp maakt geen ontbrekende
+oude HLS-kanalen aan en start geen gestopte NVR-containers. Het aanleveren van
+16 bronadressen verandert de huidige Studio-limiet van 13 geregistreerde camera’s
+niet.

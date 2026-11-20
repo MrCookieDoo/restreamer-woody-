@@ -54,7 +54,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check Windows updater orchestration
         shell: powershell
-        run: ./tests/update.Tests.ps1
+        run: |
+          ./tests/update.Tests.ps1
+          ./tests/nvr-sources.Tests.ps1
   bundle:
     needs: [ui, studio, chatbot, updater]
     runs-on: ubuntu-latest

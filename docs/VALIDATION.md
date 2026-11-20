@@ -121,3 +121,21 @@ UI-/Python-/botafhankelijkheden vóór de broncode, zodat codewijzigingen de
 installatielagen kunnen hergebruiken. De eerste build na deze herindeling moet de
 nieuwe cache nog vullen. Volledige Docker-bundelvalidatie blijft een CI/doelserver-
 check zoals hierboven beschreven.
+
+## Oude NVR-netwerkruimte behouden
+
+De bestaande NVR-proxy’s delen de netwerkruimte van container Woody; hun
+localhost-poorten zijn niet op de host gepubliceerd. De parallelle installatie
+leest daarom de bestaande HLS-uitgangen via de gepubliceerde oude HTTP-poort.
+`nvr-sources.cmd` geeft de overeenkomstige adressen vanuit alleen een leesactie
+op de bestaande Core-database. Oude netwerken, inputprocessen en publicaties
+worden niet aangepast.
+
+Zeven PowerShell-controles voor de adreslijst slagen. Een echte lokale HLS-proef
+met H.264 op 15 fps en AAC-audio werkt tegelijk in Studio en een tweede lezer,
+zonder de producer te herstarten. De lokale proxyvariabelen zijn voor deze
+loopback-test expliciet uitgeschakeld. Deze proef bewijst de ontvangstroute;
+Docker Desktop-DNS en de werkelijke HLS-uitgangen van de gebruiker moeten op diens
+Windows-pc worden gecontroleerd.
+
+De volledige backend/media-suite omvat na deze toevoeging 38 geslaagde tests.
