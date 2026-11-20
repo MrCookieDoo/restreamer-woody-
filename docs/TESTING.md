@@ -117,9 +117,14 @@ onder PowerShell 7 gecontroleerd.
 powershell -NoProfile -File tests/nvr-sources.Tests.ps1
 ```
 
-De zeven controles toetsen Core-databasemetadata, kanaal 1 en 16, HLS uit geheugen
-of op schijf, het weglaten van bronwachtwoorden, veilig afwijzen van ongeldige data
-en uitsluitend de leesopdracht `docker exec ... cat`. Docker is hierbij nagebootst.
+De tien controles toetsen Core-databasemetadata, kanaal 1 en 16, daadwerkelijke
+HLS-uitvoer uit geheugen of op schijf, master-/variantpaden bij tee-uitvoer, het
+weglaten van bronwachtwoorden, veilig afwijzen van ongeldige data en uitsluitend
+de leesopdracht `docker exec ... cat`. Een nagebootste beschikbaarheidscontrole
+bevestigt dat een 404 niet als bruikbaar adres wordt aangeboden. Docker is
+hierbij nagebootst. De HTTP-controle is daarnaast lokaal met een tijdelijke
+server gecontroleerd op een geldige playlist, een 404 en een HTML-reactie met
+status 200.
 `tests/test_engine_hls.py` in de Studio-service test een echte HTTP HLS-stream met
 15 fps en AAC-audio, twee gelijktijdige lezers en behoud van het producerproces.
 De Studio-image bevat daarvoor ook de FFmpeg-testgenerator.

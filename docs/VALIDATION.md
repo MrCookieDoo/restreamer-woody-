@@ -131,11 +131,15 @@ leest daarom de bestaande HLS-uitgangen via de gepubliceerde oude HTTP-poort.
 op de bestaande Core-database. Oude netwerken, inputprocessen en publicaties
 worden niet aangepast.
 
-Zeven PowerShell-controles voor de adreslijst slagen. Een echte lokale HLS-proef
+Tien PowerShell-controles voor de adreslijst slagen, inclusief de daadwerkelijke
+uitvoerconfiguratie, master-/variantpaden en het overslaan van ontbrekende
+playlists. De HTTP-controle is lokaal getest op geldige HLS, HTTP 404 en HTML met
+status 200. Een echte lokale HLS-proef
 met H.264 op 15 fps en AAC-audio werkt tegelijk in Studio en een tweede lezer,
 zonder de producer te herstarten. De lokale proxyvariabelen zijn voor deze
 loopback-test expliciet uitgeschakeld. Deze proef bewijst de ontvangstroute;
-Docker Desktop-DNS en de werkelijke HLS-uitgangen van de gebruiker moeten op diens
-Windows-pc worden gecontroleerd.
+De gebruiker heeft op de Windows-pc bevestigd dat een gekopieerde actieve
+HLS-uitgang via `host.docker.internal:8080` in de nieuwe Restreamer beeld geeft.
+Ontvangst van deze bron in diens Studio is nog niet bevestigd.
 
 De volledige backend/media-suite omvat na deze toevoeging 38 geslaagde tests.

@@ -13,7 +13,7 @@ foreach ($entry in @(@($first,18550,0,'memfs'), @($last,18565,15,'diskfs'), @($i
     $id = 'restreamer-ui:ingest:' + $entry[0]
     $source = "http://127.0.0.1:$($entry[1])/channel$($entry[2]).ts"
     if ($entry[0] -eq $ignored) { $source = 'rtsp://private-user:private-password@camera/live' }
-    $process[$id] = @{ id = $id; config = @{ input = @(@{ address = $source }) } }
+    $process[$id] = @{ id = $id; config = @{ input = @(@{ address = $source }); output = @(@{id='output_0';address=('{' + $entry[3] + '}/' + $entry[0] + '.m3u8');options=@('-f','hls')}) } }
     $metadata[$id] = @{ 'restreamer-ui' = @{
         sources = @(@{ type = 'network'; settings = @{mode='pull';address=$source}; inputs = @(@{address=$source}) })
         profiles = @(@{video=@{source=0}})
@@ -34,6 +34,21 @@ $failed = $false
 try { ConvertFrom-NvrDatabase $json 'http://admin:private-password@host:8080' }
 catch { $failed = $_.Exception.Message -notmatch 'private-password' }
 Assert-NvrTest $failed 'Credential-bearing output URLs were accepted'
+# Real output configuration wins over a stale metadata storage value.
+$originalOutput = $process['restreamer-ui:ingest:' + $first].config.output
+$process['restreamer-ui:ingest:' + $first].config.output = @(@{id='output_0';address='{diskfs}/actual/live.m3u8';options=@('-f','hls')})
+$changedJson = @{version=4;process=$process;metadata=@{process=$metadata}} | ConvertTo-Json -Depth 15 -Compress
+$changed = @(ConvertFrom-NvrDatabase $changedJson 'http://host.docker.internal:8080' | Sort-Object NVR)
+Assert-NvrTest ($changed[0].Bronadres -eq 'http://host.docker.internal:8080/actual/live.m3u8') 'Guessed path from metadata instead of the actual output'
+$process['restreamer-ui:ingest:' + $first].config.output = $originalOutput
+$tee = Get-NvrHlsPaths ([pscustomobject]@{output=@([pscustomobject]@{id='output_0';address='[f=hls:hls_segment_filename={memfs^:}/segment_%04d.ts:master_pl_name=master.m3u8]{memfs}/variant_{outputid}.m3u8|[f=flv]rtmp://private-user:private-password@host/key';options=@()})}) 'http://host:8080'
+Assert-NvrTest ($tee.Count -eq 2 -and $tee[0] -eq 'http://host:8080/memfs/master.m3u8' -and $tee[1] -eq 'http://host:8080/memfs/variant_output_0.m3u8') 'Tee master or variant path incorrect'
+Assert-NvrTest (($tee -join '') -notmatch 'private-password') 'Tee publication credentials leaked'
+function Test-NvrPlaylist {
+    param([string]$Address)
+    if ($Address -like '*11111111*') { return [pscustomobject]@{Valid=$false;Status=404} }
+    return [pscustomobject]@{Valid=$true;Status=200}
+}
 # Exercise the actual orchestration with a read-only Docker-command mock.
 function docker {
     $script:dockerCall = $args -join ' '
@@ -43,4 +58,6 @@ function docker {
 $output = Show-NvrSources 'Woody' 'http://host.docker.internal:8080' '/core/config/db.json'
 Assert-NvrTest ($script:dockerCall -eq 'exec Woody cat /core/config/db.json') 'Unexpected Docker mutation'
 Assert-NvrTest (($output -join '') -notmatch 'private-password|private-user') 'Private source values appeared in output'
-Write-Host '7 NVR-source checks passed.'
+Assert-NvrTest (($output -join '') -notmatch $first) 'A 404 playlist was advertised as usable'
+Assert-NvrTest (($output -join '') -match $last) 'An available playlist was omitted'
+Write-Host '10 NVR-source checks passed.'

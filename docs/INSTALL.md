@@ -194,14 +194,18 @@ Vanuit PowerShell in de nieuwe projectmap:
 
 Deze uitleeshulp leest via Docker `cat /core/config/db.json` binnen container
 `Woody`. Hij drukt geen ruwe database of bronwachtwoorden af. Per herkend NVR-
-kanaal verschijnt een HLS-adres, bijvoorbeeld:
+kanaal leest hij de daadwerkelijke HLS-uitvoerconfiguratie en controleert hij of
+de playlist bereikbaar is. Alleen bij een geldige HLS-reactie verschijnt een
+bronadres, bijvoorbeeld:
 
 ```text
 http://host.docker.internal:8080/memfs/<bestaand-kanaal-id>.m3u8
 ```
 
-Bij HLS op schijf ontbreekt `/memfs/`; de hulp kiest dit uit de bestaande
-metadata. `host.docker.internal` is het hostadres voor Docker Desktop. Het is een
+Bij HLS op schijf ontbreekt `/memfs/`; de hulp volgt de bestaande
+uitvoerconfiguratie. Een ontbrekende playlist (HTTP 404) wordt gemeld en niet als
+bruikbaar bronadres aangeboden. Gebruik een kanaal dat in de oude Woody beeld
+geeft. `host.docker.internal` is het hostadres voor Docker Desktop. Het is een
 bronadres voor de containers; de browser blijft voor de nieuwe interface
 `http://localhost:8082/ui/` gebruiken als poort 8082 in `.env` staat.
 
@@ -218,6 +222,11 @@ Een andere containernaam of gepubliceerde oude HTTP-poort kan expliciet:
 ```
 
 Een aangepaste Core-datadirectory kan met `-DatabasePath /pad/naar/db.json`.
+De beschikbaarheidscontrole gebruikt op Windows `127.0.0.1` voor het hostadres;
+het getoonde bronadres behoudt `host.docker.internal` voor de nieuwe containers.
+Met `-NoCheck` kun je de geconfigureerde paden zonder controle laten zien,
+bijvoorbeeld bij afgeschermde HLS-uitgangen. Deze worden als ongecontroleerd
+gemarkeerd en kunnen dus nog een 404 of aanmeldfout geven.
 Als de database niet kan worden gelezen, kun je ook de bestaande HLS-knop in de
 oude Restreamer gebruiken: behoud kanaal-id en pad en gebruik voor deze
 Docker Desktop-opstelling `host.docker.internal:8080` als host en poort.
