@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import welcomeImage from '../assets/images/welcome.png';
 import Paper from '../misc/Paper';
 import PaperThumb from '../misc/PaperThumb';
+import StudioLink from '../misc/StudioLink';
 
 export default function Welcome(props) {
 	const navigate = useNavigate();
@@ -21,7 +22,9 @@ export default function Welcome(props) {
 				<Grid item xs={12}>
 					<PaperThumb image={welcomeImage} title="Welcome to Restreamer v2" height="200px" />
 				</Grid>
-				<Grid item xs={12}></Grid>
+				<Grid item xs={12}>
+					<StudioLink />
+				</Grid>
 				<Grid item xs={12}>
 					<Typography align="center">
 						<Trans>

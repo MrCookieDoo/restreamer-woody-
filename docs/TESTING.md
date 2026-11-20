@@ -77,3 +77,23 @@ compatibiliteit van ieder cameramodel, GPU of platformaccount. De 24-uursduurtes
 en de doelhardwaretest moeten na installatie met de echte bronnen plaatsvinden.
 De noodknop moet binnen één seconde aan de mixeruitgang werken; de zichtbare
 reactie bij kijkers volgt pas na de resterende encoder- en platformbuffers.
+
+## Studio in een echte browser
+
+De regressietest gebruikt de echte productiebundel en VideoJS, inclusief
+klikbaarheid buiten de videospeler, knopantwoorden, scènevenster, heen-en-terug
+navigeren en een mobiel scherm. Gebruik een aparte demo-installatie met
+`WOODY_ALLOW_TEST_SOURCES=1` en voer eerst `scripts/demo.py` uit. De test weigert
+installaties met echte camera-ID’s. Er worden regie-instellingen gewijzigd, maar
+geen platformpublicaties of chatberichten aangemaakt.
+
+```sh
+python -m pip install playwright
+python -m playwright install chromium
+python scripts/test_ui_browser.py --url http://localhost:8082
+```
+
+Gebruik indien nodig `--env-file /pad/naar/de/test/.env` en
+`--chromium /usr/bin/chromium`. Schermafbeeldingen staan in
+`artifacts/studio-browser/`. De browser moet dezelfde ondersteunde Core/FFmpeg-
+combinatie krijgen als de productie-installatie.

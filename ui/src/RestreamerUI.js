@@ -36,6 +36,7 @@ const useStyles = makeStyles((theme) => ({
 		},
 		'& .MainContent-item': {
 			maxWidth: '980px',
+			'&:has([data-woody-page])': { maxWidth: '1440px' },
 		},
 	},
 }));

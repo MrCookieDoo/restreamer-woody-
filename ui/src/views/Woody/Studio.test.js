@@ -5,6 +5,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 import Studio, { CameraBoard } from './Studio';
 import Chatbot from './Chatbot';
+import StudioBoundary from './StudioBoundary';
+import StudioLink from '../../misc/StudioLink';
 
 jest.mock('../../misc/Player', () => () => <div>Programmapreview</div>);
 
@@ -57,4 +59,47 @@ test('chat simulator explicitly marks the request as a simulation', async () => 
 			expect.objectContaining({ simulate: true, platform: 'simulator', role: 'moderator' }),
 		),
 	);
+});
+
+test('button responses from an older Studio server preserve the engine and preview until polling completes', async () => {
+	const current = state();
+	const rs = restreamer(current);
+	let loaded = false;
+	rs.StudioRequest.mockImplementation((method, path) => {
+		if (path === '/channels') return Promise.resolve([]);
+		if (method === 'GET') {
+			if (loaded) return new Promise(() => {}); // Poll is still in flight.
+			loaded = true;
+			return Promise.resolve(current);
+		}
+		const { engine, program_channel_id, ...partial } = current;
+		return Promise.resolve({ ...partial, revision: 2, program: { ...current.program, safe: true } });
+	});
+	wrap(<Studio restreamer={rs} />);
+	fireEvent.click(await screen.findByRole('button', { name: 'Alles naar wachtbeeld' }));
+	await screen.findByText('Algemeen wachtbeeld actief. Chatbediening is vergrendeld.');
+	expect(screen.getByText('Mixer: running')).toBeInTheDocument();
+	expect(screen.getByText('Programmapreview')).toBeInTheDocument();
+	expect(screen.getByRole('button', { name: '1 groot + 5 klein' })).toBeInTheDocument();
+});
+
+test('the Restreamer home page entry links directly to Studio', () => {
+	wrap(<StudioLink />);
+	expect(screen.getByRole('link', { name: 'Studio openen' })).toHaveAttribute('href', '#/studio');
+});
+
+test('a Studio render error presents recovery controls instead of a blank page', () => {
+	const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+	function BrokenStudio() {
+		throw new Error('Test render failure');
+	}
+	wrap(
+		<StudioBoundary>
+			<BrokenStudio />
+		</StudioBoundary>,
+	);
+	expect(screen.getByRole('alert')).toHaveTextContent('Studio kon niet worden weergegeven');
+	expect(screen.getByRole('link', { name: 'Naar Restreamer' })).toHaveAttribute('href', '#/');
+	expect(screen.getByRole('button', { name: 'Studio opnieuw laden' })).toBeEnabled();
+	log.mockRestore();
 });

@@ -44,13 +44,25 @@ export default function Chatbot({ restreamer }) {
 			}),
 		);
 	return (
-		<Box sx={{ px: { xs: 2, md: 5 }, pb: 8 }}>
-			<Stack direction="row" justifyContent="space-between" mb={3}>
+		<Box
+			data-woody-page="chatbot"
+			sx={{
+				pb: 10,
+				px: { xs: 2, sm: 0 },
+				'& .MuiButton-textPrimary:not(.Mui-disabled)': { color: 'text.primary' },
+				'& .MuiButton-root': { minHeight: 40 },
+				'& .MuiCard-root': { p: 0, border: '1px solid', borderColor: 'divider', boxShadow: 'none' },
+				'& .MuiCardContent-root': { p: { xs: 2, md: 3 }, '&:last-child': { pb: { xs: 2, md: 3 } } },
+			}}
+		>
+			<Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
 				<Box>
 					<Typography variant="h4">Chatbot</Typography>
 					<Typography color="text.secondary">Twitch en YouTube · bediening voor moderators en kanaaleigenaar</Typography>
 				</Box>
-				<Button href="#/studio">Naar regie</Button>
+				<Button href="#/studio" variant="outlined">
+					Naar Studio
+				</Button>
 			</Stack>
 			{error && (
 				<Alert severity="error" sx={{ mb: 2 }}>
@@ -95,7 +107,7 @@ export default function Chatbot({ restreamer }) {
 									onChange={(e) => change('youtube_channel', e.target.value)}
 									helperText="Het gekoppelde YouTube-account moet de actieve livestream kunnen beheren."
 								/>
-								<Stack direction="row" spacing={2}>
+								<Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
 									<TextField
 										type="number"
 										label="Wachttijd gezamenlijk (s)"
@@ -150,6 +162,7 @@ export default function Chatbot({ restreamer }) {
 									Accountkoppeling gebeurt via de installatiehandleiding. Start de optionele chatbotservice nadat de accounts zijn gekoppeld.
 								</Typography>
 								<Button
+									variant="outlined"
 									component="a"
 									href="https://github.com/MrCookieDoo/restreamer-woody-/blob/feat/woody-studio/docs/CHATBOT.md"
 									target="_blank"
@@ -201,6 +214,7 @@ export default function Chatbot({ restreamer }) {
 							<Stack direction="row" justifyContent="space-between">
 								<Typography variant="h6">Recente opdrachten</Typography>
 								<Button
+									variant="outlined"
 									disabled={busy}
 									onClick={async () => {
 										const entries = await request('GET', '/chat/audit');

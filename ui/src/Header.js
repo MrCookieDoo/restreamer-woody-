@@ -5,6 +5,7 @@ import { Trans } from '@lingui/macro';
 import makeStyles from '@mui/styles/makeStyles';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import Divider from '@mui/material/Divider';
+import Button from '@mui/material/Button';
 import Fab from '@mui/material/Fab';
 import Grid from '@mui/material/Grid';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -87,9 +88,8 @@ const useStyles = makeStyles((theme) => ({
 			'& .headerLeft': {
 				marginLeft: 20,
 			},
-			'& .headerTitle': {
-				fontSize: '2.4rem',
-			},
+			'& .headerTitle': { display: 'none' },
+			'& .headerFab': { width: 44, height: 44, marginLeft: '.5em', '& .fabIcon': { fontSize: 24 } },
 		},
 		'@media (max-width: 415px)': {
 			'& .headerRight': {
@@ -241,6 +241,9 @@ function HeaderMenu(props) {
 	if (props.expand === true) {
 		return (
 			<React.Fragment>
+				<Button component="a" href="#/studio" variant="outlined" color="primary" startIcon={<LayersIcon />} sx={{ minHeight: 44 }}>
+					Studio
+				</Button>
 				<Fab className="headerFab" color="primary" onClick={props.onChannel}>
 					<VideocamIcon className="fabIcon" />
 				</Fab>
@@ -279,7 +282,7 @@ function HeaderMenu(props) {
 						<ListItemIcon>
 							<VideocamIcon fontSize="small" />
 						</ListItemIcon>
-						Regie
+						Studio / Regie
 					</MenuItem>
 					<MenuItem component="a" href="#/chatbot">
 						<ListItemIcon>

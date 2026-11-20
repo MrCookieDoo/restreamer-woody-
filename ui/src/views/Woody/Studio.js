@@ -25,6 +25,9 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import Player from '../../misc/Player';
 import useStudio from './useStudio';
 
+// The upstream theme styles MuiDialog like an inline paper; restore the modal root locally.
+const dialogLayout = { p: 0, width: 'auto', maxWidth: 'none', maxHeight: 'none', overflow: 'visible', bgcolor: 'transparent' };
+
 const areas = ['2 / 2 / 4 / 4', '2 / 1 / 3 / 2', '3 / 1 / 4 / 2', '4 / 1 / 5 / 2', '4 / 2 / 5 / 3', '4 / 3 / 5 / 4'];
 
 export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwitch, disabled, color = '#85532d', border = 4 }) {
@@ -70,7 +73,13 @@ export function CameraBoard({ slots = [], cameras, restreamer, safe, full, onSwi
 							<Box
 								component="img"
 								alt=""
-								src={restreamer.GetChannelAddress('snapshot+memfs', cid)}
+								src={`${restreamer.GetChannelAddress('snapshot+memfs', cid)}?t=${Math.floor(Date.now() / 5000)}`}
+								onError={(event) => {
+									event.currentTarget.style.visibility = 'hidden';
+								}}
+								onLoad={(event) => {
+									event.currentTarget.style.visibility = 'visible';
+								}}
 								sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
 							/>
 						)}
@@ -111,6 +120,8 @@ export default function Studio({ restreamer }) {
 	const [editing, setEditing] = React.useState(null);
 	const [interval, setIntervalValue] = React.useState('180');
 	const [notice, setNotice] = React.useState('');
+	const [actionError, setActionError] = React.useState('');
+	const [previewVersion, setPreviewVersion] = React.useState(0);
 	React.useEffect(() => {
 		restreamer
 			.StudioRequest('GET', '/channels')
@@ -123,14 +134,19 @@ export default function Studio({ restreamer }) {
 	const patchProgram = (body) => request('PATCH', '/program', body);
 	const switchCamera = (camera) => request('POST', '/program/switch', { camera });
 	const provision = async () => {
-		const result = await request('POST', '/program/channel');
-		if (result) {
-			await restreamer.ReloadChannels();
-			await restreamer.UpdatePlayer(result.channel_id);
-			const metadata = await restreamer.GetIngestMetadata(result.channel_id);
-			await restreamer.UpsertIngestSnapshot(result.channel_id, metadata.control);
-			await restreamer.StartIngestSnapshot(result.channel_id);
-			setNotice('Woody Hoofdstream is beschikbaar. Open het kanaal om publicaties toe te voegen.');
+		setActionError('');
+		try {
+			const result = await request('POST', '/program/channel');
+			if (result) {
+				await restreamer.ReloadChannels();
+				await restreamer.UpdatePlayer(result.channel_id);
+				const metadata = await restreamer.GetIngestMetadata(result.channel_id);
+				await restreamer.UpsertIngestSnapshot(result.channel_id, metadata.control);
+				await restreamer.StartIngestSnapshot(result.channel_id);
+				setNotice('Woody Hoofdstream is beschikbaar. Open het kanaal om publicaties toe te voegen.');
+			}
+		} catch (e) {
+			setActionError(e.message || 'Het hoofdkanaal kon niet worden ingesteld.');
 		}
 	};
 	const add = async () => {
@@ -143,20 +159,35 @@ export default function Studio({ restreamer }) {
 	const { program, cameras, rotation } = state;
 	const list = Object.entries(cameras);
 	return (
-		<Box sx={{ px: { xs: 2, md: 5 }, pb: 8 }}>
+		<Box
+			data-woody-page="studio"
+			sx={{
+				pb: 10,
+				px: { xs: 2, sm: 0 },
+				'& .MuiButton-textPrimary:not(.Mui-disabled)': { color: 'text.primary' },
+				'& .MuiButton-root': { minHeight: 40 },
+				'& .MuiCard-root': { p: 0, border: '1px solid', borderColor: 'divider', boxShadow: 'none' },
+				'& .MuiCardContent-root': { p: { xs: 2, md: 3 }, '&:last-child': { pb: { xs: 2, md: 3 } } },
+			}}
+		>
 			<Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={3}>
 				<Box>
-					<Typography variant="h4">Regie</Typography>
+					<Typography variant="h4">Studio</Typography>
 					<Typography color="text.secondary">Eén uitzending · tot 13 camera’s · geluid volgt het grote beeld</Typography>
 				</Box>
-				<Stack direction="row" spacing={1}>
-					<Chip label={`Mixer: ${state.engine.state}`} color={state.engine.state === 'running' ? 'success' : 'warning'} />
-					<Button href="#/chatbot">Chatbot</Button>
+				<Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
+					<Chip label={`Mixer: ${state.engine?.state || 'onbekend'}`} color={state.engine?.state === 'running' ? 'success' : 'warning'} />
+					<Button href="#/" variant="outlined">
+						Naar Restreamer
+					</Button>
+					<Button href="#/chatbot" variant="outlined">
+						Chatbot
+					</Button>
 				</Stack>
 			</Stack>
-			{error && (
+			{(error || actionError) && (
 				<Alert severity="error" sx={{ mb: 2 }}>
-					{error}
+					{error || actionError}
 				</Alert>
 			)}
 			{notice && (
@@ -169,12 +200,17 @@ export default function Studio({ restreamer }) {
 					Algemeen wachtbeeld actief. Chatbediening is vergrendeld.
 				</Alert>
 			)}
+			{list.length === 0 && (
+				<Alert severity="info" sx={{ mb: 3 }}>
+					Koppel hieronder eerst een bestaand camerakanaal aan Studio. Maak daarna het hoofdkanaal gereed en kies een indeling.
+				</Alert>
+			)}
 			<Grid container spacing={3}>
-				<Grid item xs={12} lg={8}>
+				<Grid item xs={12} md={8}>
 					<Card>
 						<CardContent>
-							<Stack direction="row" justifyContent="space-between" mb={2}>
-								<Typography variant="h6">Bevestigde indeling</Typography>
+							<Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1} mb={2}>
+								<Typography variant="h6">Regie · 1 groot + 5 klein</Typography>
 								<Chip
 									size="small"
 									label={program.pinned ? 'Vastgezet' : rotation.enabled ? `Wissel over ${program.next_switch_in}s` : 'Handmatige regie'}
@@ -198,7 +234,7 @@ export default function Studio({ restreamer }) {
 								<Button variant="contained" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'six' })}>
 									1 groot + 5 klein
 								</Button>
-								<Button disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'full' })}>
+								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ safe: false, layout: 'full' })}>
 									Volledig scherm
 								</Button>
 								<Button variant="outlined" disabled={busy} onClick={() => patchProgram({ pinned: !program.pinned })}>
@@ -212,26 +248,42 @@ export default function Studio({ restreamer }) {
 					</Card>
 					<Card sx={{ mt: 3 }}>
 						<CardContent>
-							<Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+							<Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={2}>
 								<Typography variant="h6">Woody Hoofdstream</Typography>
-								<Button disabled={busy} onClick={provision}>
+								<Button variant="outlined" disabled={busy} onClick={provision}>
 									Hoofdkanaal gereedmaken
 								</Button>
 							</Stack>
-							<Player source={restreamer.GetChannelAddress('hls+memfs', state.program_channel_id)} />
-							<Button href={`#/${state.program_channel_id}`} sx={{ mt: 1 }}>
+							<Box
+								data-testid="program-preview"
+								sx={{
+									position: 'relative',
+									width: '100%',
+									aspectRatio: '16 / 9',
+									overflow: 'hidden',
+									bgcolor: 'black',
+									'& > .MuiGrid-root': { m: 0, width: '100%' },
+									'& [data-vjs-player]': { width: '100%' },
+								}}
+							>
+								<Player key={previewVersion} source={restreamer.GetChannelAddress('hls+memfs', state.program_channel_id)} controls />
+							</Box>
+							<Button variant="outlined" href={`#/${state.program_channel_id}`} sx={{ mt: 2, mr: 1 }}>
 								Open kanaal en publicaties
+							</Button>
+							<Button variant="outlined" onClick={() => setPreviewVersion((v) => v + 1)} sx={{ mt: 2 }}>
+								Preview vernieuwen
 							</Button>
 						</CardContent>
 					</Card>
 				</Grid>
-				<Grid item xs={12} lg={4}>
+				<Grid item xs={12} md={4}>
 					<Card>
 						<CardContent>
 							<Typography variant="h6" mb={2}>
 								Automatische ronde
 							</Typography>
-							<Stack direction="row" spacing={1} alignItems="center">
+							<Stack direction={{ xs: 'column', sm: 'row', md: 'column', lg: 'row' }} spacing={1} alignItems="stretch">
 								<TextField
 									label="Interval in seconden"
 									type="number"
@@ -241,6 +293,7 @@ export default function Studio({ restreamer }) {
 									size="small"
 								/>
 								<Button
+									variant="outlined"
 									disabled={busy || !Number.isInteger(Number(interval)) || Number(interval) < 10 || Number(interval) > 86400}
 									onClick={() => request('PUT', '/rotation', { ...rotation, interval_seconds: Number(interval) })}
 								>
@@ -248,6 +301,7 @@ export default function Studio({ restreamer }) {
 								</Button>
 							</Stack>
 							<Button
+								variant="outlined"
 								sx={{ mt: 2 }}
 								startIcon={rotation.enabled ? <PauseIcon /> : <PlayArrowIcon />}
 								disabled={busy}
@@ -262,6 +316,7 @@ export default function Studio({ restreamer }) {
 											{index + 1}. {cameras[cid]?.name}
 										</Typography>
 										<Button
+											variant="outlined"
 											size="small"
 											disabled={busy || index === 0}
 											aria-label={`Zet ${cameras[cid]?.name} eerder`}
@@ -287,22 +342,30 @@ export default function Studio({ restreamer }) {
 								{Object.values(state.scenes).map((s) => (
 									<Stack key={s.alias} direction="row" spacing={1}>
 										<Button
+											variant="outlined"
 											sx={{ flex: 1, justifyContent: 'flex-start' }}
 											disabled={busy}
 											onClick={() => request('POST', `/scenes/${s.alias}/apply`)}
 										>
 											{s.name}
 										</Button>
-										<Button size="small" onClick={() => setScene({ ...s })}>
+										<Button variant="outlined" size="small" onClick={() => setScene({ ...s })}>
 											Bewerk
 										</Button>
-										<Button size="small" color="error" disabled={busy} onClick={() => request('DELETE', `/scenes/${s.alias}`)}>
+										<Button
+											variant="outlined"
+											size="small"
+											color="error"
+											disabled={busy}
+											onClick={() => request('DELETE', `/scenes/${s.alias}`)}
+										>
 											Wis
 										</Button>
 									</Stack>
 								))}
 							</Stack>
 							<Button
+								variant="outlined"
 								sx={{ mt: 2 }}
 								onClick={() => setScene({ alias: '', name: '', layout: program.layout, cameras: [...program.slots], chat_enabled: false })}
 							>
@@ -315,7 +378,7 @@ export default function Studio({ restreamer }) {
 							<Typography variant="h6" mb={2}>
 								Kaderranden
 							</Typography>
-							<Stack direction="row" spacing={2}>
+							<Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
 								<TextField
 									label="Kleur"
 									type="color"
@@ -339,24 +402,26 @@ export default function Studio({ restreamer }) {
 					</Card>
 				</Grid>
 				<Grid item xs={12}>
-					<Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+					<Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={2}>
 						<Typography variant="h5">
 							Camera’s{' '}
 							<Typography component="span" color="text.secondary">
 								{list.length}/13
 							</Typography>
 						</Typography>
-						<Button href="#/">Bestaande kanalen beheren</Button>
+						<Button variant="outlined" href="#/">
+							Bestaande kanalen beheren
+						</Button>
 					</Stack>
 					<Card sx={{ mb: 2 }}>
 						<CardContent>
-							<Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+							<Stack direction={{ xs: 'column', sm: 'row' }} flexWrap="wrap" useFlexGap spacing={2}>
 								<TextField
 									select
 									label="Bestaand Restreamer-kanaal"
 									value={channel}
 									onChange={(e) => setChannel(e.target.value)}
-									sx={{ minWidth: 240 }}
+									sx={{ minWidth: { sm: 240 }, flex: 1 }}
 									size="small"
 								>
 									{channels.map((c) => (
@@ -374,6 +439,7 @@ export default function Studio({ restreamer }) {
 									Camera toevoegen
 								</Button>
 								<Button
+									variant="outlined"
 									onClick={async () => {
 										const result = await request('GET', '/channels');
 										if (result) setChannels(result);
@@ -401,7 +467,7 @@ export default function Studio({ restreamer }) {
 											!camera {c.alias}
 											{program.audio_camera === cid ? ' · Audio actief' : ''}
 										</Typography>
-										<Stack direction="row" spacing={1} mt={2}>
+										<Stack direction="row" flexWrap="wrap" useFlexGap spacing={1} mt={2}>
 											<Button variant="outlined" disabled={busy || c.hidden || c.state !== 'online'} onClick={() => switchCamera(cid)}>
 												Groot zetten
 											</Button>
@@ -424,7 +490,9 @@ export default function Studio({ restreamer }) {
 													/>
 												}
 											/>
-											<Button onClick={() => setEditing({ cid, alias: c.alias })}>Bewerk</Button>
+											<Button variant="outlined" onClick={() => setEditing({ cid, alias: c.alias })}>
+												Bewerk
+											</Button>
 										</Stack>
 									</CardContent>
 								</Card>
@@ -433,7 +501,7 @@ export default function Studio({ restreamer }) {
 					</Grid>
 				</Grid>
 			</Grid>
-			<Dialog open={!!scene} onClose={() => setScene(null)} fullWidth maxWidth="sm">
+			<Dialog open={!!scene} onClose={() => setScene(null)} fullWidth maxWidth="sm" sx={dialogLayout}>
 				<DialogTitle>Scène samenstellen</DialogTitle>
 				<DialogContent>
 					<Stack spacing={2} mt={1}>
@@ -482,8 +550,11 @@ export default function Studio({ restreamer }) {
 					</Stack>
 				</DialogContent>
 				<DialogActions>
-					<Button onClick={() => setScene(null)}>Annuleren</Button>
+					<Button variant="outlined" onClick={() => setScene(null)}>
+						Annuleren
+					</Button>
 					<Button
+						variant="outlined"
 						disabled={busy || !scene?.name || !/^[a-z][a-z0-9-]{0,31}$/.test(scene?.alias || '')}
 						onClick={async () => {
 							if (
@@ -499,7 +570,7 @@ export default function Studio({ restreamer }) {
 					</Button>
 				</DialogActions>
 			</Dialog>
-			<Dialog open={!!editing} onClose={() => setEditing(null)}>
+			<Dialog open={!!editing} onClose={() => setEditing(null)} fullWidth maxWidth="sm" sx={dialogLayout}>
 				<DialogTitle>Camera bewerken</DialogTitle>
 				<DialogContent>
 					<TextField
@@ -511,6 +582,7 @@ export default function Studio({ restreamer }) {
 				</DialogContent>
 				<DialogActions>
 					<Button
+						variant="outlined"
 						color="error"
 						disabled={busy}
 						onClick={async () => {
@@ -520,6 +592,7 @@ export default function Studio({ restreamer }) {
 						Uit regie verwijderen
 					</Button>
 					<Button
+						variant="outlined"
 						disabled={busy}
 						onClick={async () => {
 							const camera = cameras[editing.cid];
@@ -529,6 +602,7 @@ export default function Studio({ restreamer }) {
 						Bron vernieuwen
 					</Button>
 					<Button
+						variant="outlined"
 						disabled={busy || !/^[a-z][a-z0-9-]{0,31}$/.test(editing?.alias || '')}
 						onClick={async () => {
 							if (await request('PATCH', `/cameras/${editing.cid}`, { alias: editing.alias })) setEditing(null);

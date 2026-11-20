@@ -4,6 +4,7 @@ import { Route, Navigate, Routes, HashRouter as DOMRouter } from 'react-router-d
 import Views from './views';
 import Studio from './views/Woody/Studio';
 import Chatbot from './views/Woody/Chatbot';
+import StudioBoundary from './views/Woody/StudioBoundary';
 
 export default function Router(props) {
 	if (props.restreamer === null) {
@@ -16,8 +17,22 @@ export default function Router(props) {
 		<DOMRouter>
 			<Routes>
 				<Route path="/" element={<Views.ChannelSelect channelid={channelid} />} />
-				<Route path="/studio" element={<Studio restreamer={props.restreamer} />} />
-				<Route path="/chatbot" element={<Chatbot restreamer={props.restreamer} />} />
+				<Route
+					path="/studio"
+					element={
+						<StudioBoundary key="studio">
+							<Studio restreamer={props.restreamer} />
+						</StudioBoundary>
+					}
+				/>
+				<Route
+					path="/chatbot"
+					element={
+						<StudioBoundary key="chatbot">
+							<Chatbot restreamer={props.restreamer} />
+						</StudioBoundary>
+					}
+				/>
 				<Route path="/playersite" element={<Views.Playersite restreamer={props.restreamer} />} />
 				<Route path="/settings" element={<Views.Settings restreamer={props.restreamer} />} />
 				<Route path="/settings/:tab" element={<Views.Settings restreamer={props.restreamer} />} />
@@ -28,7 +43,7 @@ export default function Router(props) {
 				<Route path="/:channelid/publication" element={<Views.AddService key={channelid} restreamer={props.restreamer} />} />
 				<Route path="/:channelid/publication/player" element={<Views.EditPlayer key={channelid} restreamer={props.restreamer} />} />
 				<Route path="/:channelid/publication/:service/:index" element={<Views.EditService key={channelid} restreamer={props.restreamer} />} />
-				<Route path="*" render={() => <Navigate to="/" replace />} />
+				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>
 		</DOMRouter>
 	);

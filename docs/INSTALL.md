@@ -25,7 +25,7 @@ niet. Bewaar `.env` niet in Git en deel het bestand niet in chat.
    maximaal 1080p met camera-audio. De mixer ondersteunt ook H.265-decodering via
    de aanwezige libav-plugin. Model- en firmwareondersteuning verschilt, vooral
    bij batterijcamera’s; controleer dat continu RTSP daadwerkelijk beschikbaar is.
-2. Open **Regie** in het bestaande hoofdmenu. Kies bestaande kanalen en geef ze
+2. Open **Studio** met de knop op de Restreamer-hoofdpagina of via **Studio / Regie** in het hoofdmenu. Kies bestaande kanalen en geef ze
    een korte alias, bijvoorbeeld `tuin` of `vijver`. Bronadressen en wachtwoorden
    worden server-side uit Core gelezen en versleuteld opgeslagen.
 3. Klik **Hoofdkanaal gereedmaken**. Dit maakt een normaal Restreamer-kanaal

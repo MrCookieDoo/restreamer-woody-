@@ -2,22 +2,23 @@ import React from 'react';
 
 export default function useStudio(restreamer) {
 	const [state, setState] = React.useState(null);
-	const [error, setError] = React.useState('');
+	const [loadError, setLoadError] = React.useState('');
+	const [actionError, setActionError] = React.useState('');
 	const [busy, setBusy] = React.useState(false);
 	const mounted = React.useRef(true);
 	const pending = React.useRef(0);
 	const receive = React.useCallback((value) => {
-		setState((previous) => (previous && previous.revision > value.revision ? previous : value));
+		setState((previous) => (previous && previous.revision > value.revision ? previous : { ...previous, ...value }));
 	}, []);
 	const refresh = React.useCallback(async () => {
 		try {
 			const value = await restreamer.StudioRequest('GET', '/state');
 			if (mounted.current) {
 				receive(value);
-				setError('');
+				setLoadError('');
 			}
 		} catch (e) {
-			if (mounted.current) setError(e.message);
+			if (mounted.current) setLoadError(e.message);
 		}
 	}, [restreamer, receive]);
 	React.useEffect(() => {
@@ -38,17 +39,19 @@ export default function useStudio(restreamer) {
 		setBusy(true);
 		try {
 			const value = await restreamer.StudioRequest(method, path, body);
-			if (value?.program) receive(value);
-			setError('');
-			await refresh();
+			if (mounted.current) {
+				if (value?.program) receive(value);
+				setActionError('');
+			}
+			if (!value?.program) await refresh();
 			return value;
 		} catch (e) {
-			setError(e.message);
+			if (mounted.current) setActionError(e.message);
 			return null;
 		} finally {
 			pending.current -= 1;
-			setBusy(pending.current > 0);
+			if (mounted.current) setBusy(pending.current > 0);
 		}
 	};
-	return { state, error, busy, request };
+	return { state, error: actionError || loadError, busy, request };
 }

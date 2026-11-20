@@ -219,15 +219,23 @@ class Restreamer {
 
 	// Woody uses the same Core access token and refresh flow as existing views.
 	async StudioRequest(method, path, body) {
-		const [value, error] = await this._call(this.api._call, method, '/woody/v1' + path, {
-			headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-			...(body === undefined ? {} : { body: JSON.stringify(body) }),
-			expect: 'json',
-		});
-		if (error) {
-			throw new Error(error.message?.detail || (typeof error.message === 'string' ? error.message : 'Studio is niet bereikbaar'));
+		const call = () =>
+			this.api._call(method, '/woody/v1' + path, {
+				headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+				...(body === undefined ? {} : { body: JSON.stringify(body) }),
+				expect: 'json',
+				signal: AbortSignal.timeout(15000),
+			});
+		// A Studio connection failure must stay inside Studio. The normal Core
+		// request wrapper marks the entire Restreamer UI disconnected on errors.
+		let result = await call();
+		if (result.err?.code === 401 && (await this.RefreshToken())) result = await call();
+		if (result.err) {
+			const message = result.err.message;
+			const detail = typeof message === 'object' ? message?.detail : message;
+			throw new Error(typeof detail === 'string' ? detail : 'De Studio-aanvraag is mislukt. Controleer de invoer of probeer opnieuw.');
 		}
-		return value;
+		return result.val;
 	}
 
 	async ReloadChannels() {

@@ -110,15 +110,20 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
     def health():
         return {"ok": True, "engine": engine.status()["state"]}
 
+    def studio_state():
+        # Mutations must have the same envelope as polling. The UI renders these
+        # responses immediately, before the next /state request completes.
+        return {**controller.state(), "engine": engine.status(), "program_channel_id": PROGRAM_ID}
+
     @app.get(prefix + "/state", dependencies=[Depends(admin)])
     def state():
-        return {**controller.state(), "engine": engine.status(), "program_channel_id": PROGRAM_ID}
+        return studio_state()
 
     @app.get(prefix + "/events")
     async def events(request: Request, claims=Depends(admin)):
         async def stream():
             while not await request.is_disconnected() and time.time() < claims["exp"]:
-                payload = {**controller.state(), "engine": engine.status(), "program_channel_id": PROGRAM_ID}
+                payload = studio_state()
                 yield "data: " + json.dumps(payload) + "\n\n"
                 await asyncio.sleep(1)
         return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -131,33 +136,33 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
     def add_camera(body: CameraSettings):
         name, uri = core.source(body.channel_id)
         controller.add_camera(body.model_dump(), name, uri)
-        return controller.state()
+        return studio_state()
 
     @app.patch(prefix + "/cameras/{cid}", dependencies=[Depends(admin)])
     def patch_camera(cid: str, body: CameraPatch):
         controller.patch_camera(cid, body.model_dump(exclude_none=True))
-        return controller.state()
+        return studio_state()
 
     @app.delete(prefix + "/cameras/{cid}", dependencies=[Depends(admin)])
     def delete_camera(cid: str):
         controller.remove_camera(cid)
-        return controller.state()
+        return studio_state()
 
     @app.put(prefix + "/cameras/{cid}/hidden")
     def hide_camera(cid: str, body: Hidden, claims=Depends(admin)):
         controller.hide(cid, body.hidden)
         store.audit(claims["sub"], "camera-hidden", f"{cid}:{body.hidden}")
-        return controller.state()
+        return studio_state()
 
     @app.patch(prefix + "/program", dependencies=[Depends(admin)])
     def program(body: ProgramPatch):
         controller.set_program(body.model_dump(exclude_none=True))
-        return controller.state()
+        return studio_state()
 
     @app.post(prefix + "/program/switch", dependencies=[Depends(admin)])
     def switch(body: Switch):
         controller.switch(body.camera)
-        return controller.state()
+        return studio_state()
 
     @app.post(prefix + "/program/channel", dependencies=[Depends(admin)])
     def provision():
@@ -166,12 +171,12 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
     @app.put(prefix + "/rotation", dependencies=[Depends(admin)])
     def rotation(body: Rotation):
         controller.rotation(body.model_dump())
-        return controller.state()
+        return studio_state()
 
     @app.put(prefix + "/scenes", dependencies=[Depends(admin)])
     def scene(body: Scene):
         controller.save_scene(body.model_dump())
-        return controller.state()
+        return studio_state()
 
     @app.delete(prefix + "/scenes/{alias}", dependencies=[Depends(admin)])
     def delete_scene(alias: str):
@@ -180,17 +185,17 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
                 raise Rejected("Onbekende scène")
             del controller.data["scenes"][alias]
             controller.changed()
-        return controller.state()
+        return studio_state()
 
     @app.post(prefix + "/scenes/{alias}/apply", dependencies=[Depends(admin)])
     def apply_scene(alias: str):
         controller.apply_scene(alias)
-        return controller.state()
+        return studio_state()
 
     @app.put(prefix + "/chat", dependencies=[Depends(admin)])
     def chat_settings(body: ChatSettings):
         controller.chat_settings(body.model_dump())
-        return controller.state()
+        return studio_state()
 
     @app.post(prefix + "/chat/simulate", dependencies=[Depends(admin)])
     def simulate(body: ChatCommand):
@@ -226,6 +231,6 @@ def create_app(settings=None, *, engine_factory=None, core_factory=Core):
             for i in range(13):
                 cid = f"00000000-0000-0000-0000-{i:012d}"
                 controller.add_camera({"channel_id": cid, "alias": f"demo-{i + 1}", "chat_enabled": True}, f"Demo {i + 1}", f"test://{i}")
-            return controller.state()
+            return studio_state()
 
     return app

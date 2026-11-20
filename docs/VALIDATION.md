@@ -42,3 +42,31 @@ De aangegeven HLS-framefrequentie is geen capaciteitsgarantie voor de doelhardwa
 Werkelijke cameramodellen, GPU-versnelling, Twitch-/YouTube-accountkoppelingen en
 de 24-uursduurtest zijn nog niet op locatie uitgevoerd. Zie `TESTING.md` voor
 acceptatie en `INSTALL.md` voor installatie, back-up en terugzetten.
+
+## Herstel van de Studio-bediening
+
+De eerdere UI-tests vervingen de speler door een stub en gebruikten volledige
+antwoorden voor alle knopacties. Daardoor werden twee regressies gemist:
+VideoJS had zonder relatieve container de hele pagina als referentie, en de
+mutatie-antwoorden misten `engine` en `program_channel_id`, waardoor de volgende
+render crashte.
+
+Alle regie-antwoorden hebben nu hetzelfde volledige formaat als `/state`.
+De UI behoudt ook bij oudere, gedeeltelijke antwoorden de bestaande velden.
+De speler blijft in een eigen 16:9-container; regievensters, zichtbare knoppen,
+responsieve panelen en de Studio-ingang op de Restreamer-hoofdpagina zijn aangepast
+op de bestaande interface. Studio-netwerkfouten blijven lokaal en een renderfout
+biedt herstelknoppen zonder de gewone Restreamer-navigatie te verwijderen.
+
+Aanvullende regressies: API-contract voor alle mutaties, UI-herstel bij gedeeltelijke
+antwoorden en renderfouten, tokenverversing en geïsoleerde verbindingsfouten.
+`scripts/test_ui_browser.py` controleert de echte VideoJS-productiebundel op een
+aparte demo-installatie. Zie `TESTING.md` voor uitvoering.
+
+Voor deze herstelronde zijn 22 controller/Core/API-tests en 85 UI-tests geslaagd.
+De browserproef gebruikte de echte productie-JavaScriptbundel, Core-login,
+Studio-API in expliciete control-only-modus, synthetische camerastatussen en een
+werkelijk afspelende HLS-testvideo. De lokale FFmpeg 7.1.5-versie vereist in die
+browserproef een expliciete compatibiliteitsfixture voor de gepinde 6.1.1-versie;
+dit verandert geen productiecode. Deze proef valideert de bediening en geometrie,
+geen nieuwe GStreamer-capaciteits- of hardwareclaim.

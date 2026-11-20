@@ -19,6 +19,7 @@ import DebugModal from '../../misc/modals/Debug';
 import H from '../../utils/help';
 import Paper from '../../misc/Paper';
 import PaperHeader from '../../misc/PaperHeader';
+import StudioLink from '../../misc/StudioLink';
 import Player from '../../misc/Player';
 import Progress from './Progress';
 import Publication from './Publication';
@@ -296,6 +297,7 @@ export default function Main(props) {
 
 	return (
 		<React.Fragment>
+			<StudioLink />
 			<Grid container justifyContent="center" spacing={1} className={classes.gridContainerL1}>
 				<Grid item xs={12} sm={12} md={8}>
 					<Paper marginBottom="0">
